@@ -4,3 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+p3-koala-bear = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
+p3-field = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
+fiat-shamir = { git = "https://github.com/leanEthereum/fiat-shamir.git" }
+p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", rev = "8d9fc6e" }
+p3-challenger = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
+p3-util = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
+rand = { version = "0.9.2" }
+
+[features]
+default = []
+parallel = ["p3-maybe-rayon/parallel"]
