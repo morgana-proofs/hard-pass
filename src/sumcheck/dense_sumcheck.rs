@@ -1,6 +1,6 @@
 use std::{cmp::min, marker::PhantomData};
 use p3_maybe_rayon::prelude::*;
-use crate::{common::{algfn::AlgFnSO, claims::{EvalClaim, SinglePointClaims, SumClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{SumcheckGenericProverImpl, SumcheckOutput, SumcheckProtocol}, sumcheckable::Sumcheckable}};
+use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{GenericSumcheckProver, GenericSumcheckVerifier, SumcheckOutput}, glue::DensePostProcessing, sumcheckable::Sumcheckable}};
 
 pub struct DenseSumcheck<F: FormalField, Fun: AlgFnSO<F>> {
     f: Fun,
@@ -19,40 +19,34 @@ impl<F: FormalField, Fun: AlgFnSO<F>> DenseSumcheck<F, Fun> {
 }
 
 impl<F: FormalField, Fun: AlgFnSO<F>, Ctx: VerifierFieldCtx<F=F>> ProtocolVerifier<Ctx> for DenseSumcheck<F, Fun> {
-    type ClaimsBefore = SumClaim<F>;
+    type ClaimsBefore = SumEvalClaim<F>;
     type ClaimsAfter = SinglePointClaims<F>;
 
     fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
-        let generic_protocol_config = SumcheckProtocol::<F, _>::new(self.f.clone(), self.num_vars);
+        let generic_protocol_config = GenericSumcheckVerifier::<F>::new(self.f.deg(), self.num_vars);
+        let claims = generic_protocol_config.verify(ctx, claims);
 
-        let SumClaim {ev, point} = generic_protocol_config.verify(ctx, claims);
-
-        let poly_evs = (0..self.f.n_ins()).map(|_| ctx.read()).collect::<Vec<_>>();
-
-        (self.f.exec(&poly_evs) - ev).require();
-        SinglePointClaims {point, evs: poly_evs}
+        let dense_post_processing = DensePostProcessing::new(self.f.clone());
+        dense_post_processing.verify(ctx, claims)
     }
 }
-
-
 
 impl<F: Field, Fun: AlgFnSO<F>, Ctx: ProverFieldCtx<F=F>> ProtocolProver<Ctx> for DenseSumcheck<F, Fun> {
     type ProverInput = Vec<Vec<F>>;
     type ProverOutput = ();
-    type ClaimsBefore = SumClaim<F>;
+    type ClaimsBefore = SumEvalClaim<F>;
     type ClaimsAfter = SinglePointClaims<F>;
 
     fn prove(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore, advice: Self::ProverInput) -> (Self::ClaimsAfter, Self::ProverOutput) {
-        let generic_protocol_config = SumcheckGenericProverImpl::new_partial(self.f.clone(), self.num_vars, self.num_rounds);
+        let generic_protocol_config = GenericSumcheckProver::new_partial(self.f.deg(), self.num_vars, self.num_rounds);
 
-        let so = DenseSumcheckableSO::new(advice, self.f.clone(),  self.num_vars, claims.ev.clone());
+        let so = DenseSumcheckableSO::new(advice, self.f.clone(),  self.num_vars, claims.value.clone());
 
-        let (SumClaim {ev, point}, poly_evs) = generic_protocol_config.prove(ctx, claims, so);
-        let SumcheckOutput::Final(poly_evs) = poly_evs else { unreachable!() };
+        let (claims, poly_evs) = generic_protocol_config.prove(ctx, claims, so);
+        let SumcheckOutput::Final(poly_evs) = poly_evs else { panic!() };
 
-        ctx.write_multi(self.f.n_ins(), &poly_evs);
-
-        (SinglePointClaims {point, evs: poly_evs}, ())
+        let dense_post_processing = DensePostProcessing::new(self.f.clone());
+        dense_post_processing.prove(ctx, claims, poly_evs)
     }
 }
 
@@ -165,7 +159,7 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
 mod tests {
     use super::*;
     use std::ops::Index;
-    use crate::common::{algfn::AlgFnSO, claims::SumClaim, koala_passthrough::KoalaBear4 as F, math::evaluate_multivar, random::Random};
+    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear4 as F, math::evaluate_multivar, random::Random};
     use fiat_shamir::{ProverState, VerifierState};
     use p3_challenger::{DuplexChallenger, MultiField32Challenger};
     use p3_field::{PrimeCharacteristicRing, extension::quartic_mul};
@@ -211,7 +205,7 @@ mod tests {
 
         let mut transcript_p = ProverState::new(challenger.clone());
 
-        let claim = SumClaim{ev:output.into_iter().sum(), point: vec![]};
+        let claim = SumEvalClaim{value:output.into_iter().sum(), point: vec![]};
         let sumcheck = DenseSumcheck::new(f, logsize);
         let (output_claims, _) = sumcheck.prove(&mut transcript_p, claim.clone(), polys.clone());
         let proof = transcript_p.proof_data();

@@ -1,6 +1,7 @@
 use std::iter::once;
 use p3_maybe_rayon::prelude::*;
 use crate::common::formal_field::{Field, FormalField};
+use itertools::Itertools;
 
 pub fn evaluate_univar<F: FormalField>(poly: &[F], x: &F) -> F {
     let l = poly.len();
@@ -219,9 +220,12 @@ pub fn eq_poly<F: Field>(pt: &[F]) -> Vec<F> {
     eq_poly_sequence_last(&pt).unwrap()
 }
 
-
 pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
     let e_p = eq_poly(pt);
     poly.par_iter().zip(e_p.par_iter()).map(|(&a, &b)| a * b).sum()
     
+}
+
+pub fn eq_ev<F: FormalField>(x: &[F], y: &[F]) -> F {
+    x.iter().zip_eq(y.iter()).map(|(&x, &y)| F::ONE - x - y + (x * y).double()).product()
 }

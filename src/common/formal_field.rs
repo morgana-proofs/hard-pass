@@ -1,5 +1,5 @@
 use std::ops::{Div, DivAssign};
-use p3_field::{Algebra};
+use p3_field::Algebra;
 
 pub trait FormalField: Algebra<Self::Constant> + Div<Output = Self> + DivAssign + Copy {
     type Constant: Field;

@@ -72,6 +72,7 @@ name = "hard-pass"
 version = "0.1.0"
 dependencies = [
  "fiat-shamir",
+ "itertools",
  "p3-challenger",
  "p3-field",
  "p3-koala-bear",
