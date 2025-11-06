@@ -229,7 +229,11 @@ mod tests {
         let expected_output_claims = sumcheck.verify(&mut transcript_v, claim.clone());
         assert_eq!(output_claims, expected_output_claims);
 
-        let SinglePointClaims { point : new_point, evs } = output_claims;
-        assert_eq!(polys.iter().map(|poly| evaluate_multivar(poly, &new_point)).collect::<Vec<_>>(), evs);
+        let SinglePointClaims { point : mut new_point, evs } = output_claims;
+        
+        assert_eq!(polys.iter().map(|poly| 
+            evaluate_multivar(poly, &new_point)
+        ).collect::<Vec<_>>(), evs);
+
     }
 }

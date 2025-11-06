@@ -10,6 +10,7 @@ fiat-shamir = { git = "https://github.com/leanEthereum/fiat-shamir.git" }
 p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", rev = "8d9fc6e" }
 p3-challenger = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
 p3-util = { git = "https://github.com/TomWambsgans/Plonky3.git", branch = "lean-multisig" }
+multilinear-toolkit = { git = "https://github.com/leanEthereum/multilinear-toolkit.git", branch = "p3_maybe_rayon" }
 rand = { version = "0.9.2" }
 itertools = { version = "0.14.0" }
 

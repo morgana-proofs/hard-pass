@@ -1,4 +1,5 @@
 use std::iter::once;
+use multilinear_toolkit::prelude::{EvaluationsList, MultilinearPoint};
 use p3_maybe_rayon::prelude::*;
 use crate::common::formal_field::{Field, FormalField};
 use itertools::Itertools;
@@ -118,140 +119,131 @@ fn eliminate<F: Field>(matrix: &mut [Vec<F>], i: usize) {
     }
 }
 
-// EQ poly evals
-struct EQPolyEvaluator<F: Field> {
-    padding_size: usize,
-    multiplier: F,
+pub fn eq_ev<F: FormalField>(x: &[F], y: &[F]) -> F {
+    x.iter().zip_eq(y.iter()).map(|(&x, &y)| F::ONE - x - y + (x * y).double()).product()
 }
 
-impl<F: Field> EQPolyEvaluator<F> {
-    fn new() -> Self {
-        Self {
-            padding_size: 0,
-            multiplier: F::ONE,
-        }
-    }
+// // EQ poly evals
+// struct EQPolyEvaluator<F: Field> {
+//     padding_size: usize,
+//     multiplier: F,
+// }
 
-    fn from_multiplier(multiplier: F) -> Self {
-        Self {
-            padding_size: 0,
-            multiplier,
-        }
-    }
+// impl<F: Field> EQPolyEvaluator<F> {
+//     fn new() -> Self {
+//         Self {
+//             padding_size: 0,
+//             multiplier: F::ONE,
+//         }
+//     }
 
-    fn from_padding(padding_size: usize) -> Self {
-        Self {
-            padding_size,
-            multiplier: F::ONE,
-        }
-    }
+//     fn from_multiplier(multiplier: F) -> Self {
+//         Self {
+//             padding_size: 0,
+//             multiplier,
+//         }
+//     }
 
-    fn with_multiplier(mut self, poly: &F) -> Self {
-        self.multiplier = *poly;
-        self
-    }
+//     fn from_padding(padding_size: usize) -> Self {
+//         Self {
+//             padding_size,
+//             multiplier: F::ONE,
+//         }
+//     }
 
-    fn with_padding(mut self, padding_size: usize) -> Self {
-        self.padding_size = padding_size;
-        self
-    }
-    fn seq(self, pt: &[F]) -> Vec<Vec<F>> {
-        let Self{  padding_size, multiplier } = self;
-        let l = pt.len();
-        let mut ret = Vec::with_capacity(l + 1);
-        ret.push(vec![multiplier]);
-        for i in 1..=padding_size {
-            ret.push(vec![ret[i - 1][0] * (F::ONE - pt[i - 1])]);
-        }
+//     fn with_multiplier(mut self, poly: &F) -> Self {
+//         self.multiplier = *poly;
+//         self
+//     }
 
-        for i in (padding_size + 1)..=l {
-            let last = &ret[i - 1];
-            let multiplier = &pt[i - 1];
+//     fn with_padding(mut self, padding_size: usize) -> Self {
+//         self.padding_size = padding_size;
+//         self
+//     }
+//     fn seq(self, pt: &[F]) -> Vec<Vec<F>> {
+//         let Self{  padding_size, multiplier } = self;
+//         let l = pt.len();
+//         let mut ret = Vec::with_capacity(l + 1);
+//         ret.push(vec![multiplier]);
+//         for i in 1..=padding_size {
+//             ret.push(vec![ret[i - 1][0] * (F::ONE - pt[i - 1])]);
+//         }
 
-            let mut incoming = vec![F::ZERO; 1 << (i - padding_size)];
-            for j in (0..1 << (i - 1 - padding_size)) {
-                let w = last[j];
-                let m = *multiplier * w;
-                incoming[2 * j] = w - m;
-                incoming[2 * j + 1] = m;
-            }
-            ret.push(incoming);
+//         for i in (padding_size + 1)..=l {
+//             let last = &ret[i - 1];
+//             let multiplier = &pt[i - 1];
 
-            // let mut incoming = UninitArr::<F>::new(1 << (i - padding_size));
-            // unsafe {
-            //     let ptr = incoming.as_shared_mut_ptr();
-            //     #[cfg(not(feature = "parallel"))]
-            //     let iter = (0 .. (1 << (i - 1 - padding_size))).into_iter();
-            //
-            //     #[cfg(feature = "parallel")]
-            //     let iter = (0 .. (1 << (i - 1 - padding_size))).into_par_iter();
-            //
-            //     iter.map(|j|{
-            //         let w = &last[j];
-            //         let m = *multiplier * w;
-            //         *ptr.get_mut(2 * j) = *w - m;
-            //         *ptr.get_mut(2 * j + 1) = m;
-            //     }).count();
-            //     ret.push(incoming.assume_init());
-            // }
-        }
+//             let mut incoming = vec![F::ZERO; 1 << (i - padding_size)];
+//             for j in (0..1 << (i - 1 - padding_size)) {
+//                 let w = last[j];
+//                 let m = *multiplier * w;
+//                 incoming[2 * j] = w - m;
+//                 incoming[2 * j + 1] = m;
+//             }
+//             ret.push(incoming);
 
-        ret
-    }
+//             // let mut incoming = UninitArr::<F>::new(1 << (i - padding_size));
+//             // unsafe {
+//             //     let ptr = incoming.as_shared_mut_ptr();
+//             //     #[cfg(not(feature = "parallel"))]
+//             //     let iter = (0 .. (1 << (i - 1 - padding_size))).into_iter();
+//             //
+//             //     #[cfg(feature = "parallel")]
+//             //     let iter = (0 .. (1 << (i - 1 - padding_size))).into_par_iter();
+//             //
+//             //     iter.map(|j|{
+//             //         let w = &last[j];
+//             //         let m = *multiplier * w;
+//             //         *ptr.get_mut(2 * j) = *w - m;
+//             //         *ptr.get_mut(2 * j + 1) = m;
+//             //     }).count();
+//             //     ret.push(incoming.assume_init());
+//             // }
+//         }
 
-    fn last(self, pt: &[F]) -> Option<Vec<F>> {
-        self.seq(pt).pop()
-    }
-}
-pub fn padded_eq_poly_sequence<F: Field>(padding_size: usize, pt: &[F]) -> Vec<Vec<F>> {
-    EQPolyEvaluator::from_padding(padding_size).seq(pt)
-}
+//         ret
+//     }
 
-pub fn eq_poly_sequence<F: Field>(pt: &[F]) -> Vec<Vec<F>> {
-    EQPolyEvaluator::new().seq(pt)
-}
+//     fn last(self, pt: &[F]) -> Option<Vec<F>> {
+//         self.seq(pt).pop()
+//     }
+// }
+// pub fn padded_eq_poly_sequence<F: Field>(padding_size: usize, pt: &[F]) -> Vec<Vec<F>> {
+//     EQPolyEvaluator::from_padding(padding_size).seq(pt)
+// }
 
-fn eq_poly_sequence_last<F: Field>(pt: &[F]) -> Option<Vec<F>> {
-    EQPolyEvaluator::new().last(pt)
-}
+// pub fn eq_poly_sequence<F: Field>(pt: &[F]) -> Vec<Vec<F>> {
+//     EQPolyEvaluator::new().seq(pt)
+// }
 
-pub fn eq_poly_sequence_from_multiplier_last<F: Field>(mul: F, pt: &[F]) -> Option<Vec<F>> {
-    EQPolyEvaluator::from_multiplier(mul).last(pt)
-}
+// fn eq_poly_sequence_last<F: Field>(pt: &[F]) -> Option<Vec<F>> {
+//     EQPolyEvaluator::new().last(pt)
+// }
 
-pub fn eq_poly_old<F: Field>(pt: &[F]) -> Vec<F> {
+// pub fn eq_poly_sequence_from_multiplier_last<F: Field>(mul: F, pt: &[F]) -> Option<Vec<F>> {
+//     EQPolyEvaluator::from_multiplier(mul).last(pt)
+// }
+
+// pub fn eq_poly_old<F: Field>(pt: &[F]) -> Vec<F> {
+//     let mut pt = pt.to_vec();
+//     pt.reverse();
+//     eq_poly_sequence_last(&pt).unwrap()
+// }
+
+// // TODO: FIX THIS MESS
+
+pub fn eq_poly_scaled<F: Field>(mul: F, pt: &[F]) -> Vec<F> {
     let mut pt = pt.to_vec();
     pt.reverse();
-    eq_poly_sequence_last(&pt).unwrap()
-}
-
-// TODO: FIX THIS MESS
-
-pub fn eq_poly_from_multiplier<F: Field>(mul: F, pt: &[F]) -> Vec<F> {
-    let half = pt.len() / 2;
-
-    let a = eq_poly_old(&pt[..half]);
-    let mut b = eq_poly_old(&pt[half..]);
-    b.par_iter_mut().for_each(|b| *b *= mul);
-
-    b.par_iter().map(|b| a.par_iter().map(|a| *a * *b)).flatten().collect::<Vec<_>>()
+    multilinear_toolkit::prelude::eval_eq_scaled(&pt, mul)
 }
 
 pub fn eq_poly<F: Field>(pt: &[F]) -> Vec<F> {
-    let half = pt.len() / 2;
-
-    let a = eq_poly_old(&pt[..half]);
-    let b = eq_poly_old(&pt[half..]);
-    b.par_iter().map(|b| a.par_iter().map(|a| *a * *b)).flatten().collect::<Vec<_>>()
-
+    eq_poly_scaled(F::ONE, pt)
 }
 
 pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
-    let e_p = eq_poly(pt);
-    poly.par_iter().zip(e_p.par_iter()).map(|(&a, &b)| a * b).sum()
-    
-}
-
-pub fn eq_ev<F: FormalField>(x: &[F], y: &[F]) -> F {
-    x.iter().zip_eq(y.iter()).map(|(&x, &y)| F::ONE - x - y + (x * y).double()).product()
+    let mut pt = pt.to_vec();
+    pt.reverse();
+    poly.evaluate(&MultilinearPoint(pt))
 }

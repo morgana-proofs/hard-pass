@@ -9,10 +9,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "backend"
+version = "0.3.0"
+source = "git+https://github.com/leanEthereum/multilinear-toolkit.git?branch=p3_maybe_rayon#a3dec808f51c3a615be0ddf1f27d8d8e4514688a"
+dependencies = [
+ "fiat-shamir",
+ "itertools",
+ "p3-field",
+ "p3-maybe-rayon 0.3.0 (git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig)",
+ "p3-util",
+ "rand",
+ "tracing",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "constraints-folder"
+version = "0.3.0"
+source = "git+https://github.com/leanEthereum/multilinear-toolkit.git?branch=p3_maybe_rayon#a3dec808f51c3a615be0ddf1f27d8d8e4514688a"
+dependencies = [
+ "fiat-shamir",
+ "p3-air",
+ "p3-field",
+ "p3-matrix",
+]
 
 [[package]]
 name = "crossbeam-deque"
@@ -73,6 +98,7 @@ version = "0.1.0"
 dependencies = [
  "fiat-shamir",
  "itertools",
+ "multilinear-toolkit",
  "p3-challenger",
  "p3-field",
  "p3-koala-bear",
@@ -95,6 +121,20 @@ name = "libc"
 version = "0.2.177"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
+
+[[package]]
+name = "multilinear-toolkit"
+version = "0.3.0"
+source = "git+https://github.com/leanEthereum/multilinear-toolkit.git?branch=p3_maybe_rayon#a3dec808f51c3a615be0ddf1f27d8d8e4514688a"
+dependencies = [
+ "backend",
+ "constraints-folder",
+ "fiat-shamir",
+ "p3-field",
+ "p3-maybe-rayon 0.3.0 (git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig)",
+ "p3-util",
+ "sumcheck",
+]
 
 [[package]]
 name = "num-bigint"
@@ -122,6 +162,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "once_cell"
+version = "1.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "p3-air"
+version = "0.3.0"
+source = "git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig#59a799ce00907553aeef3d7cf38f616023e9ad5f"
+dependencies = [
+ "p3-field",
+ "p3-matrix",
 ]
 
 [[package]]
@@ -199,6 +254,9 @@ dependencies = [
 name = "p3-maybe-rayon"
 version = "0.3.0"
 source = "git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig#59a799ce00907553aeef3d7cf38f616023e9ad5f"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "p3-maybe-rayon"
@@ -269,6 +327,7 @@ name = "p3-util"
 version = "0.3.0"
 source = "git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig#59a799ce00907553aeef3d7cf38f616023e9ad5f"
 dependencies = [
+ "rayon",
  "serde",
 ]
 
@@ -403,6 +462,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 
 [[package]]
+name = "sumcheck"
+version = "0.3.0"
+source = "git+https://github.com/leanEthereum/multilinear-toolkit.git?branch=p3_maybe_rayon#a3dec808f51c3a615be0ddf1f27d8d8e4514688a"
+dependencies = [
+ "backend",
+ "constraints-folder",
+ "fiat-shamir",
+ "p3-air",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon 0.3.0 (git+https://github.com/TomWambsgans/Plonky3.git?branch=lean-multisig)",
+ "p3-util",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -440,6 +514,9 @@ name = "tracing-core"
 version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
+dependencies = [
+ "once_cell",
+]
 
 [[package]]
 name = "transpose"

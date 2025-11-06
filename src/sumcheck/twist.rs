@@ -1,10 +1,21 @@
-use std::{cmp::min, marker::PhantomData, time::Instant};
+use std::{cmp::min, time::Instant};
 
-use itertools::Itertools;
-use p3_field::BasedVectorSpace;
 use p3_maybe_rayon::prelude::*;
 
-use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, bind_dense_poly_nonpar, eq_poly, eq_poly_from_multiplier, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{dense_sumcheck::DenseSumcheckableSO, generic::{GenericSumcheckProver, GenericSumcheckVerifier}, glue::{TwPPClaimBefore, TwPPInput, TwPostProcessing}, sumcheckable::Sumcheckable}};
+use crate::{
+    common::{
+        algfn::AlgFnSO,
+        claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim},
+        contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField},
+        math::{bind_dense_poly_nonpar, eq_poly, eq_poly_scaled, evaluate_univar, from_evals},
+        protocol::{ProtocolProver, ProtocolVerifier}},
+        sumcheck::{
+            dense_sumcheck::DenseSumcheckableSO,
+            generic::{GenericSumcheckProver, GenericSumcheckVerifier},
+            glue::{TwPPClaimBefore, TwPPInput, TwPostProcessing},
+            sumcheckable::Sumcheckable
+        }
+    };
 
 // This version of Twist works as follows:
 
@@ -170,7 +181,7 @@ impl<F: Field> RAMData<F> {
             total_prod *= rt[i] * mirror_rt[i];
         }
 
-        let eq_poly_rt_inv = eq_poly_from_multiplier(total_prod.inverse(), &mirror_rt);
+        let eq_poly_rt_inv = eq_poly_scaled(total_prod.inverse(), &mirror_rt);
 
         Self {
             diff,
@@ -500,7 +511,7 @@ mod tests {
             read.push(state[acc[i]]);
         }
         let rt = (0 .. t_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
-        let ev = evaluate_multivar(&read, &rt);
+        let ev = evaluate_multivar (&read, &rt);
         let permutation = default_koalabear_poseidon2_16();
         let challenger = KoalaChallenger::new(permutation);
         let mut transcript_p = ProverState::new(challenger.clone());

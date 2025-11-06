@@ -13,7 +13,7 @@ pub trait FormalField: Algebra<Self::Constant> + Div<Output = Self> + DivAssign 
 
 /// Marker trait implemented on p3 fields that we actually intend to use, automatically implies FormalField.
 /// Also implements some utility functions
-pub trait Field: p3_field::Field {}
+pub trait Field: p3_field::Field + p3_field::ExtensionField<multilinear_toolkit::prelude::PF<Self>> {}
 pub trait ExtensionField<F: Field>: p3_field::ExtensionField<F> + Field {}
 
 impl<F: Field> FormalField for F {
