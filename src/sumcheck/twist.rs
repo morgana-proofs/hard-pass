@@ -409,7 +409,7 @@ mod tests {
     use p3_challenger::{DuplexChallenger};
     use p3_field::{PrimeCharacteristicRing};
     use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear, default_koalabear_poseidon2_16};
-    use rand::{TryRngCore, rngs::OsRng};
+    use rand::{SeedableRng, TryRngCore, rngs::{OsRng, StdRng}};
     type KoalaChallenger = DuplexChallenger<KoalaBear, Poseidon2KoalaBear<16>, 16, 8>;
 
     #[test]
@@ -491,7 +491,7 @@ mod tests {
     fn _bench_read_phase(x_logsize: usize, t_logsize: usize, n_snapshots: usize) {
         println!("Benchmarking with x_logsize = {x_logsize}, t_logsize = {t_logsize}, n_snapshots = {n_snapshots}");
 
-        let rng = &mut OsRng;
+        let rng = &mut StdRng::from_seed([0; 32]);
         let acc = (0 .. 1 << t_logsize).map(|_| (rng.try_next_u32().unwrap() % (1 << x_logsize)) as usize).collect::<Vec<_>>();
         let diff = (0 .. 1 << t_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
         let init_state = (0 .. 1 << x_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
