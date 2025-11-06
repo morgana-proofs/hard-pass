@@ -1,4 +1,4 @@
-use std::{cmp::min, marker::PhantomData};
+use std::{cmp::min, marker::PhantomData, time::Instant};
 
 use itertools::Itertools;
 use p3_field::BasedVectorSpace;
@@ -75,6 +75,8 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
         Self::ClaimsAfter,
         Self::ProverOutput
     ) {
+        let mut start = Instant::now();
+
         let TwReadPhaseAdvice { diff, acc, init_state, n_snapshots } = advice;
 
         let rt = claims.point;
@@ -89,14 +91,34 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
             &self,
             claims.value
         );
+
+        let end = Instant::now();
+        println!("prep: {} ms", (end - start).as_millis());
+        let start = end;
+
         let x_rounds = GenericSumcheckProver::new(2, self.x_logsize);
         let (claims, sumcheckable_x) = x_rounds.prove(ctx, claims, sumcheckable_x);
+
+        let end = Instant::now();
+        println!("x rounds: {} ms", (end - start).as_millis());
+        let start = end;
+
         let sumcheckable_t = sumcheckable_x.finish();
+        
+        let end = Instant::now();
+        println!("x -> t transition: {} ms", (end - start).as_millis());
+        let start = end;
+        
         let t_rounds = GenericSumcheckProver::new(3, self.t_logsize);
         let (claims, sumcheckable_t) = t_rounds.prove(ctx, claims, sumcheckable_t);
         let final_evals = sumcheckable_t.final_evals();
         let pp = TwPostProcessing{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
-        pp.prove(ctx, TwPPClaimBefore{ claims, rt }, TwPPInput{ram_ev: final_evals[0], acc_ev: final_evals[1]})
+        let ret = pp.prove(ctx, TwPPClaimBefore{ claims, rt }, TwPPInput{ram_ev: final_evals[0], acc_ev: final_evals[1]});
+    
+        let end = Instant::now();
+        println!("t rounds: {} ms", (end - start).as_millis());
+        
+        ret
     }
     
 
@@ -456,6 +478,43 @@ mod tests {
 
         assert!(evaluate_multivar(&ram, &point) == ram_ev);
         assert!(evaluate_multivar(&acc, &point) == acc_ev);
+    }
 
+    #[test]
+    fn bench_read_phase () {
+        _bench_read_phase(5, 24, 1);
+        _bench_read_phase(5, 24, 16);
+        _bench_read_phase(16, 22, 1);
+        _bench_read_phase(16, 22, 16);        
+    }
+
+    fn _bench_read_phase(x_logsize: usize, t_logsize: usize, n_snapshots: usize) {
+        println!("Benchmarking with x_logsize = {x_logsize}, t_logsize = {t_logsize}, n_snapshots = {n_snapshots}");
+
+        let rng = &mut OsRng;
+        let acc = (0 .. 1 << t_logsize).map(|_| (rng.try_next_u32().unwrap() % (1 << x_logsize)) as usize).collect::<Vec<_>>();
+        let diff = (0 .. 1 << t_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
+        let init_state = (0 .. 1 << x_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
+        let mut read = vec![];
+        let mut state = init_state.clone();
+        for i in 0 .. 1 << t_logsize {
+            state[acc[i]] += diff[i];
+            read.push(state[acc[i]]);
+        }
+        let rt = (0 .. t_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
+        let ev = evaluate_multivar(&read, &rt);
+        let permutation = default_koalabear_poseidon2_16();
+        let challenger = KoalaChallenger::new(permutation);
+        let mut transcript_p = ProverState::new(challenger.clone());
+        let protocol = TwReadPhase{ x_logsize, t_logsize };
+        let claims = LinEvalClaim{ ev, point: rt.clone() };
+        let advice 
+        = TwReadPhaseAdvice {
+            diff,
+            acc,
+            init_state,
+            n_snapshots
+        };
+        protocol.prove(&mut transcript_p, claims.clone(), advice);
     }
 }
