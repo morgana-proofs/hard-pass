@@ -1,4 +1,4 @@
-use crate::common::formal_field::FormalField;
+use crate::common::formal_field::{Field, FormalField};
 
 pub trait ChallengerCtx {
     type F: FormalField;
@@ -22,7 +22,7 @@ pub trait VerifierFieldCtx : ChallengerCtx {
     fn unconstrained_read_multi(&mut self, size: usize) -> Vec<Self::F>;
 }
 
-pub trait ProverFieldCtx : ChallengerCtx {
+pub trait ProverFieldCtx : ChallengerCtx<F: Field> {
     /// Write value to proof and transcript. Fails in verifier context.
     fn write(&mut self, value: Self::F) -> ();
     /// Write multiple values from proof and process it in transcript. Might validate size for convenience. Fails in verifier context.        

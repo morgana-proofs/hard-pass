@@ -32,6 +32,11 @@ pub fn bind_dense_poly<F: Field>(poly: &mut Vec<F>, t: F) {
     *poly = (0..half).into_par_iter().map(|i| poly[2*i] + t * (poly[2*i + 1] - poly[2*i])).collect();
 }
 
+pub fn bind_dense_poly_nonpar<F: Field>(poly: &mut Vec<F>, t: F) {
+    let half = poly.len() / 2;
+    *poly = (0..half).into_iter().map(|i| poly[2*i] + t * (poly[2*i + 1] - poly[2*i])).collect();
+}
+
 pub fn from_evals<F: Field>(evals: &[F]) -> Vec<F> {
     vandermonde_interpolation(evals)
 }

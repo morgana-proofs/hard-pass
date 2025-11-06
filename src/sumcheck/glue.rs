@@ -46,26 +46,56 @@ impl<Ctx: ProverFieldCtx, Fun: AlgFnSO<Ctx::F>> ProtocolProver<Ctx> for DensePos
     }
 }
 
-pub struct TwistPostProcessing {
+pub struct TwPostProcessing {
     pub x_logsize: usize,
     pub t_logsize: usize,
 }
 
-pub struct TwistPPClaimBefore<F> {
+pub struct TwPPClaimBefore<F> {
     pub claims: SumEvalClaim<F>,
     pub rt: Vec<F>,
 }
 
-impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwistPostProcessing {
-    type ClaimsBefore = TwistPPClaimBefore<Ctx::F>;
+impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwPostProcessing {
+    type ClaimsBefore = TwPPClaimBefore<Ctx::F>;
     type ClaimsAfter = SinglePointClaims<Ctx::F>; // (RAM, Acc) in point (x|t); eq-eval should be eliminated
 
     fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
-        let TwistPPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
+        let TwPPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
         debug_assert!(point.len() == self.t_logsize + self.x_logsize);
-        let (ut, _) = point.split_at(self.x_logsize);
+        let (_ux, ut) = point.split_at(self.x_logsize);
         let evs = ctx.read_multi(2);
         (evs[0] * evs[1] * eq_ev(&rt, ut) - ev).require();
         SinglePointClaims { evs, point }
+    }
+}
+
+pub struct TwPPInput<F> {
+    pub ram_ev: F,
+    pub acc_ev: F,
+}
+
+impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwPostProcessing {
+    type ClaimsBefore = TwPPClaimBefore<Ctx::F>;
+    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+
+    type ProverInput = TwPPInput<Ctx::F>;
+    type ProverOutput = ();
+
+    fn prove(
+        &self,
+        ctx: &mut Ctx,
+        claims: Self::ClaimsBefore,
+        advice: Self::ProverInput
+    ) -> (
+        Self::ClaimsAfter,
+        Self::ProverOutput
+    ) {
+        let TwPPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
+        debug_assert!(point.len() == self.t_logsize + self.x_logsize);
+        let (ut, _) = point.split_at(self.x_logsize);
+        let evs = vec![advice.ram_ev, advice.acc_ev];
+        ctx.write_multi(2, &evs);
+        (SinglePointClaims { evs, point }, ())
     }
 }

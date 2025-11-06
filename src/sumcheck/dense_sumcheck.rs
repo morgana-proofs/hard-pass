@@ -1,6 +1,6 @@
 use std::{cmp::min, marker::PhantomData};
 use p3_maybe_rayon::prelude::*;
-use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{GenericSumcheckProver, GenericSumcheckVerifier, SumcheckOutput}, glue::DensePostProcessing, sumcheckable::Sumcheckable}};
+use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{GenericSumcheckProver, GenericSumcheckVerifier}, glue::DensePostProcessing, sumcheckable::Sumcheckable}};
 
 pub struct DenseSumcheck<F: FormalField, Fun: AlgFnSO<F>> {
     f: Fun,
@@ -42,8 +42,8 @@ impl<F: Field, Fun: AlgFnSO<F>, Ctx: ProverFieldCtx<F=F>> ProtocolProver<Ctx> fo
 
         let so = DenseSumcheckableSO::new(advice, self.f.clone(),  self.num_vars, claims.value.clone());
 
-        let (claims, poly_evs) = generic_protocol_config.prove(ctx, claims, so);
-        let SumcheckOutput::Final(poly_evs) = poly_evs else { panic!() };
+        let (claims, s) = generic_protocol_config.prove(ctx, claims, so);
+        let poly_evs = s.final_evals();
 
         let dense_post_processing = DensePostProcessing::new(self.f.clone());
         dense_post_processing.prove(ctx, claims, poly_evs)
@@ -53,7 +53,7 @@ impl<F: Field, Fun: AlgFnSO<F>, Ctx: ProverFieldCtx<F=F>> ProtocolProver<Ctx> fo
 #[derive(Clone, Debug)]
 pub struct DenseSumcheckableSO<F: Field, Fun: AlgFnSO<F>> {
     pub polys: Vec<Vec<F>>,
-    challenges: Vec<F>,
+    rs: Vec<F>,
     f: Fun,
     num_vars: usize,
     round_idx: usize,
@@ -69,21 +69,26 @@ impl<F: Field, Fun: AlgFnSO<F>> DenseSumcheckableSO<F, Fun> {
         for i in 0..l {
             assert_eq!(polys[i].len(), 1 << num_vars);
         }
-        Self { polys, f, num_vars, round_idx: 0, cached_unipoly: None, challenges: vec![], claim: claim_hint }
+        Self { polys, f, num_vars, round_idx: 0, cached_unipoly: None, rs: vec![], claim: claim_hint }
+    }
+
+    pub fn final_evals(&self) -> Vec<F> {
+        assert!(self.round_idx == self.num_vars, "can only call final evals after the last round");
+        self.polys.iter().map(|poly| poly[0]).collect()
     }
 }
 
 impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> {
-    fn bind(&mut self, t: F) {
+    fn bind(&mut self, r: F) {
         assert!(self.round_idx < self.num_vars, "the protocol has already ended");
-        self.challenges.push(t);
+        self.rs.push(r);
         for poly in &mut self.polys {
-            bind_dense_poly(poly, t);
+            bind_dense_poly(poly, r);
         }
         self.round_idx += 1;
         match self.cached_unipoly.take() {
             None => {panic!("should evaluate unipoly before binding - it has an opportunity to change the state due to in-place evaluation")}
-            Some(u) => {self.claim = evaluate_univar(&u, &t)}
+            Some(u) => {self.claim = evaluate_univar(&u, &r)}
         }
     }
 
@@ -144,14 +149,8 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
 
     }
 
-
-    fn final_evals(&self) -> Vec<F> {
-        assert!(self.round_idx == self.num_vars, "can only call final evals after the last round");
-        self.polys.iter().map(|poly| poly[0]).collect()
-    }
-
     fn challenges(&self) -> &[F] {
-        &self.challenges
+        &self.rs
     }
 }
 
@@ -159,11 +158,11 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
 mod tests {
     use super::*;
     use std::ops::Index;
-    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear4 as F, math::evaluate_multivar, random::Random};
+    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear5 as F, math::evaluate_multivar, random::Random};
     use fiat_shamir::{ProverState, VerifierState};
-    use p3_challenger::{DuplexChallenger, MultiField32Challenger};
-    use p3_field::{PrimeCharacteristicRing, extension::quartic_mul};
-    use p3_koala_bear::{KOALABEAR_RC16_EXTERNAL_FINAL, KOALABEAR_RC16_INTERNAL, KoalaBear, Poseidon2KoalaBear, default_koalabear_poseidon2_16};
+    use p3_challenger::{DuplexChallenger};
+    use p3_field::{PrimeCharacteristicRing};
+    use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear, default_koalabear_poseidon2_16};
     use rand::rngs::OsRng;
    
     type KoalaChallenger = DuplexChallenger<KoalaBear, Poseidon2KoalaBear<16>, 16, 8>;

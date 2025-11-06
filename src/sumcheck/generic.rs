@@ -57,17 +57,12 @@ impl<F: Field, S: Sumcheckable<F>> GenericSumcheckProver<F, S> {
     }
 }
 
-pub enum SumcheckOutput<F, S> {
-    Final(Vec<F>),
-    Partial(S)
-}
-
 impl<F: Field, S: Sumcheckable<F>, Ctx: ProverFieldCtx<F = F>> ProtocolProver<Ctx> for GenericSumcheckProver<F, S> {
     type ClaimsBefore = SumEvalClaim<Ctx::F>;
     type ClaimsAfter = SumEvalClaim<Ctx::F>;
     
     type ProverInput = S;
-    type ProverOutput = SumcheckOutput<F, S>;
+    type ProverOutput = S;
 
     fn prove(
         &self,
@@ -90,11 +85,6 @@ impl<F: Field, S: Sumcheckable<F>, Ctx: ProverFieldCtx<F = F>> ProtocolProver<Ct
             sum_claim = evaluate_univar(&poly, &r);
             sumcheckable.bind(r);
         }
-        if self.num_rounds == self.num_vars {
-            let final_evals = sumcheckable.final_evals();
-            (SumEvalClaim { value: sum_claim, point: rs }, SumcheckOutput::Final(final_evals))
-        } else {
-            (SumEvalClaim { value: sum_claim, point: rs }, SumcheckOutput::Partial(sumcheckable))
-        }
+        (SumEvalClaim { value: sum_claim, point: rs }, sumcheckable)
     }
 }

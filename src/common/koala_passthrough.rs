@@ -1,14 +1,14 @@
-use p3_field::{BasedVectorSpace, extension::BinomialExtensionField};
-use p3_koala_bear::KoalaBear;
+use p3_field::BasedVectorSpace;
+use p3_koala_bear::{KoalaBear, QuinticExtensionFieldKB};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::common::{formal_field::{ExtensionField, Field}, random::Random};
 
-pub type KoalaBear4 = BinomialExtensionField<KoalaBear, 4>;
+pub type KoalaBear5 = QuinticExtensionFieldKB;
 
 impl Field for KoalaBear {}
-impl Field for KoalaBear4 {}
-impl ExtensionField<KoalaBear> for KoalaBear4 {}
+impl Field for KoalaBear5 {}
+impl ExtensionField<KoalaBear> for KoalaBear5 {}
 
 impl Random for KoalaBear {
     fn rand<R: rand::TryRngCore>(rng: &mut R) -> Self {
@@ -20,8 +20,8 @@ impl Random for KoalaBear {
     }
 }
 
-impl Random for KoalaBear4 {
+impl Random for KoalaBear5 {
     fn rand<R: rand::TryRngCore>(rng: &mut R) -> Self {
-        KoalaBear4::from_basis_coefficients_iter((0..4).map(|_|KoalaBear::rand(rng))).unwrap()
+        KoalaBear5::from_basis_coefficients_iter((0..5).map(|_|KoalaBear::rand(rng))).unwrap()
     }
 }
