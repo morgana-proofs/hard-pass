@@ -1,5 +1,6 @@
 use std::{cmp::min, marker::PhantomData};
 
+use itertools::Itertools;
 use p3_field::BasedVectorSpace;
 use p3_maybe_rayon::prelude::*;
 
@@ -147,7 +148,9 @@ impl<F: Field> RAMData<F> {
             total_prod *= rt[i] * mirror_rt[i];
         }
 
-        let eq_poly_rt_inv = eq_poly_sequence_from_multiplier_last(total_prod.inverse(), &mirror_rt).unwrap();
+        let mut mirror_rev = mirror_rt.clone();
+        mirror_rev.reverse(); // this is happening due to eq_poly_sequence for some reason accepting points in wrong order, idk why, TODO: FIX
+        let eq_poly_rt_inv = eq_poly_sequence_from_multiplier_last(total_prod.inverse(), &mirror_rev).unwrap();
 
         Self {
             diff,
@@ -158,7 +161,7 @@ impl<F: Field> RAMData<F> {
             multipliers: eq_poly_rt.clone(),
             n_snapshots,
             eq_poly_rt,
-            eq_poly_rt_inv
+            eq_poly_rt_inv,
         }
     }
 
@@ -192,7 +195,7 @@ impl<F: Field> RAMData<F> {
     pub fn t_form(&self) -> Vec<F> {
         assert!(self.x_logsize == 0);
         let mut ret = Vec::with_capacity(1 << self.t_logsize);
-        let mut a = F::ZERO;
+        let mut a = self.snapshots[0][0];
         for &v in &self.diff {
             a += v;
             ret.push(a);
@@ -254,6 +257,10 @@ impl<F: Field> TwReadPhaseSumcheckableX<F> {
     pub fn finish(self) -> TwReadPhaseSumcheckableT<F> {
         let f = Prod3;
 
+        // // DEBUG
+        // self.ramdata.eq_poly_rt.iter().zip_eq(self.ramdata.eq_poly_rt_inv.iter()).for_each(|(&a, &b)| debug_assert!(a * b == F::ONE));
+        // // DEBUG
+
         let num_vars = self.ramdata.t_logsize;
         let claim = self.claim;
         let ram = self.ramdata.t_form();
@@ -265,7 +272,7 @@ impl<F: Field> TwReadPhaseSumcheckableX<F> {
                 self.ramdata.eq_poly_rt_inv
                 .into_par_iter()
             ).map(|(x, y)| x * y).collect::<Vec<_>>();
-
+        
         let polys = vec![ram, accmults, eq_poly_rt];
         TwReadPhaseSumcheckableT::new(polys, f, num_vars, claim)
     }
@@ -293,7 +300,7 @@ impl<F: Field> Sumcheckable<F> for TwReadPhaseSumcheckableX<F> {
                 // Single pass through RAM data. In the first round we also compute all snapshots.
                 // In theory, 1st round can also be parallelized, but we don't do it here.
                 let t_len = 1 << self.ramdata.t_logsize;
-                let chunk_size = t_len / self.ramdata.n_snapshots;
+                let chunk_size = (t_len + self.ramdata.n_snapshots - 1)  / self.ramdata.n_snapshots;
 
                 let mut buckets = [[F::ZERO; 2]; 2];                
                 if self.round_idx == 0 { // iterate through everything in a single pass
@@ -323,14 +330,7 @@ impl<F: Field> Sumcheckable<F> for TwReadPhaseSumcheckableX<F> {
                         }
                     }
                 } else { // in this case, we already have all the snapshots, so we parallelize
-                    let buckets_parts = self.ramdata.acc
-                    .par_chunks(chunk_size)
-                    .zip(
-                        self.ramdata.diff
-                        .par_chunks(chunk_size)
-                    )
-                    .enumerate()
-                    .map(|(j, (acc_c, diff_c))| {
+                    let buckets_parts = (0..self.ramdata.n_snapshots).into_par_iter().map(|j| {
                         let mut buckets_c = [[F::ZERO; 2]; 2];
                         let mut state = self.ramdata.snapshots[j].clone();
                         for i in j * chunk_size .. min(t_len, (j + 1) * chunk_size) {
@@ -366,6 +366,7 @@ impl<F: Field> Sumcheckable<F> for TwReadPhaseSumcheckableX<F> {
                     s[i] += a[i] * b[i]
                 }
 
+                debug_assert!(s[0] + s[1] == self.claim);
                 let unipoly = from_evals(&s);
                 self.cached_unipoly = Some(unipoly);
             }
@@ -393,7 +394,7 @@ mod tests {
     fn twist_read_phase_verifier_accepts_prover() {
         let x_logsize = 6;
         let t_logsize = 10; // relatively small values so we can materialize ram naively and validate everything
-        let n_snapshots = 1; // affects parallelization
+        let n_snapshots = 12; // affects parallelization
         
         let rng = &mut OsRng;
 
@@ -421,8 +422,7 @@ mod tests {
         let ev = evaluate_multivar(&read, &rt);
 
         let acc_ = acc.clone();
-        let diff_ = diff.clone();
-
+        
         let permutation = default_koalabear_poseidon2_16();
         let challenger = KoalaChallenger::new(permutation);
         let mut transcript_p = ProverState::new(challenger.clone());
@@ -446,8 +446,16 @@ mod tests {
         let SinglePointClaims { evs, point } = protocol.verify(&mut transcript_v, claims);
         let ram_ev = evs[0];
         let acc_ev = evs[1];
-        let (ux, ut) = point.split_at(x_logsize);
+        
+        let ram = ram.into_iter().flatten().collect::<Vec<_>>();
 
+        let mut acc = vec![F::ZERO; 1 << (x_logsize + t_logsize)];
+        for i in 0 .. (1 << t_logsize) {
+            acc[(i << x_logsize) + acc_[i]] = F::ONE;
+        }
+
+        assert!(evaluate_multivar(&ram, &point) == ram_ev);
+        assert!(evaluate_multivar(&acc, &point) == acc_ev);
 
     }
 }

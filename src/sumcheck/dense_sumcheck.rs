@@ -140,7 +140,22 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
                         total_acc[j + 1] = total_acc[j + 1] + acc[i][j]
                     }
                 }
+
                 total_acc[0] = self.claim - total_acc[1];
+
+                // // ---- debugging
+                // debug_assert!( total_acc[0] == {
+                //     let mut acc0 = F::ZERO;
+                //     let mut args = vec![F::ZERO; n_polys];
+                //     for i in 0..half {
+                //         for j in 0..n_polys {
+                //             args[j] = self.polys[j][2 * i];
+                //         }
+                //         acc0 += self.f.exec(&args);
+                //     }
+                //     acc0
+                // });
+                // // ------------------------------
 
                 self.cached_unipoly = Some(from_evals(&total_acc));
             }
