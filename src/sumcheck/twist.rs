@@ -4,7 +4,7 @@ use itertools::Itertools;
 use p3_field::BasedVectorSpace;
 use p3_maybe_rayon::prelude::*;
 
-use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, bind_dense_poly_nonpar, eq_poly, eq_poly_sequence_from_multiplier_last, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{dense_sumcheck::DenseSumcheckableSO, generic::{GenericSumcheckProver, GenericSumcheckVerifier}, glue::{TwPPClaimBefore, TwPPInput, TwPostProcessing}, sumcheckable::Sumcheckable}};
+use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, bind_dense_poly_nonpar, eq_poly, eq_poly_from_multiplier, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{dense_sumcheck::DenseSumcheckableSO, generic::{GenericSumcheckProver, GenericSumcheckVerifier}, glue::{TwPPClaimBefore, TwPPInput, TwPostProcessing}, sumcheckable::Sumcheckable}};
 
 // This version of Twist works as follows:
 
@@ -170,9 +170,7 @@ impl<F: Field> RAMData<F> {
             total_prod *= rt[i] * mirror_rt[i];
         }
 
-        let mut mirror_rev = mirror_rt.clone();
-        mirror_rev.reverse(); // this is happening due to eq_poly_sequence for some reason accepting points in wrong order, idk why, TODO: FIX
-        let eq_poly_rt_inv = eq_poly_sequence_from_multiplier_last(total_prod.inverse(), &mirror_rev).unwrap();
+        let eq_poly_rt_inv = eq_poly_from_multiplier(total_prod.inverse(), &mirror_rt);
 
         Self {
             diff,

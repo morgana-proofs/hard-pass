@@ -219,10 +219,31 @@ pub fn eq_poly_sequence_from_multiplier_last<F: Field>(mul: F, pt: &[F]) -> Opti
     EQPolyEvaluator::from_multiplier(mul).last(pt)
 }
 
-pub fn eq_poly<F: Field>(pt: &[F]) -> Vec<F> {
+pub fn eq_poly_old<F: Field>(pt: &[F]) -> Vec<F> {
     let mut pt = pt.to_vec();
     pt.reverse();
     eq_poly_sequence_last(&pt).unwrap()
+}
+
+// TODO: FIX THIS MESS
+
+pub fn eq_poly_from_multiplier<F: Field>(mul: F, pt: &[F]) -> Vec<F> {
+    let half = pt.len() / 2;
+
+    let a = eq_poly_old(&pt[..half]);
+    let mut b = eq_poly_old(&pt[half..]);
+    b.par_iter_mut().for_each(|b| *b *= mul);
+
+    b.par_iter().map(|b| a.par_iter().map(|a| *a * *b)).flatten().collect::<Vec<_>>()
+}
+
+pub fn eq_poly<F: Field>(pt: &[F]) -> Vec<F> {
+    let half = pt.len() / 2;
+
+    let a = eq_poly_old(&pt[..half]);
+    let b = eq_poly_old(&pt[half..]);
+    b.par_iter().map(|b| a.par_iter().map(|a| *a * *b)).flatten().collect::<Vec<_>>()
+
 }
 
 pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
