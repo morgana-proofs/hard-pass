@@ -24,3 +24,4 @@ pub struct SinglePointClaims<F> {
     pub evs: Vec<F>,
     pub point: Vec<F>,
 }
+

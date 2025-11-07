@@ -123,6 +123,27 @@ pub fn eq_ev<F: FormalField>(x: &[F], y: &[F]) -> F {
     x.iter().zip_eq(y.iter()).map(|(&x, &y)| F::ONE - x - y + (x * y).double()).product()
 }
 
+/// returns (lte(x, y), eq(x,y))
+pub fn lte_ev<F: FormalField>(x: &[F], y: &[F]) -> (F, F) {
+    let l = x.len();
+    assert!(y.len() == l);
+    let mut partial_eqs = vec![F::ONE];
+    for i in (0 .. l).rev() {
+        let s = partial_eqs.last().unwrap();
+        partial_eqs.push(*s * (F::ONE - x[i] - y[i] + x[i] * y[i].double()));
+    }
+    // we get eq_ev(x[l-i-1..], y[l-i-1..])
+    for i in 0..l+1 {
+        debug_assert!(partial_eqs[i] == eq_ev(&x[l-i ..], &y[l-i .. ]));
+    }
+
+    let lt: F = (0..l).map(|i| {
+        (F::ONE - x[l - i - 1]) * y[l - i - 1] * partial_eqs[i] // l-i-1-st bit for x is 0, for y is 1, and all higher bits are equal  
+    }).sum();
+
+    (lt + partial_eqs[l], partial_eqs[l])
+}
+
 // // EQ poly evals
 // struct EQPolyEvaluator<F: Field> {
 //     padding_size: usize,
@@ -240,6 +261,20 @@ pub fn eq_poly_scaled<F: Field>(mul: F, pt: &[F]) -> Vec<F> {
 
 pub fn eq_poly<F: Field>(pt: &[F]) -> Vec<F> {
     eq_poly_scaled(F::ONE, pt)
+}
+
+/// returns evaluations of (lte, eq)
+/// note: this outputs lte(*, pt)
+pub fn lte_poly<F: Field>(pt: &[F]) -> (Vec<F>, Vec<F>) {
+    let eq = eq_poly(pt);
+    let mut lte = vec![F::ZERO; eq.len()];
+    let mut s = F::ZERO;
+    // this can in theory be parallelized but considering these are only additions it is probably fine
+    for i in (0..eq.len()).rev() {
+        s += eq[i];
+        lte[i] = s;
+    }
+    (lte, eq)
 }
 
 pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {

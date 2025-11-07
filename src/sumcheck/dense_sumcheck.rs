@@ -1,6 +1,6 @@
 use std::{cmp::min, marker::PhantomData};
 use p3_maybe_rayon::prelude::*;
-use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{GenericSumcheckProver, GenericSumcheckVerifier}, glue::DensePostProcessing, sumcheckable::Sumcheckable}};
+use crate::{common::{algfn::AlgFnSO, claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim}, contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField}, math::{bind_dense_poly, evaluate_univar, from_evals}, protocol::{ProtocolProver, ProtocolVerifier}}, sumcheck::{generic::{GenericSumcheckProver, GenericSumcheckVerifier}, sumcheckable::Sumcheckable}};
 
 pub struct DenseSumcheck<F: FormalField, Fun: AlgFnSO<F>> {
     f: Fun,
@@ -16,6 +16,9 @@ impl<F: FormalField, Fun: AlgFnSO<F>> DenseSumcheck<F, Fun> {
     pub fn new_partial(f: Fun, num_vars: usize, num_rounds: usize) -> Self {
         Self {f, num_vars, num_rounds, _pd: PhantomData}
     }
+    pub fn pp(&self) -> DensePP<F, Fun> {
+        DensePP::new(self.f.clone())
+    }
 }
 
 impl<F: FormalField, Fun: AlgFnSO<F>, Ctx: VerifierFieldCtx<F=F>> ProtocolVerifier<Ctx> for DenseSumcheck<F, Fun> {
@@ -25,9 +28,7 @@ impl<F: FormalField, Fun: AlgFnSO<F>, Ctx: VerifierFieldCtx<F=F>> ProtocolVerifi
     fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
         let generic_protocol_config = GenericSumcheckVerifier::<F>::new(self.f.deg(), self.num_vars);
         let claims = generic_protocol_config.verify(ctx, claims);
-
-        let dense_post_processing = DensePostProcessing::new(self.f.clone());
-        dense_post_processing.verify(ctx, claims)
+        self.pp().verify(ctx, claims)
     }
 }
 
@@ -45,8 +46,7 @@ impl<F: Field, Fun: AlgFnSO<F>, Ctx: ProverFieldCtx<F=F>> ProtocolProver<Ctx> fo
         let (claims, s) = generic_protocol_config.prove(ctx, claims, so);
         let poly_evs = s.final_evals();
 
-        let dense_post_processing = DensePostProcessing::new(self.f.clone());
-        dense_post_processing.prove(ctx, claims, poly_evs)
+        self.pp().prove(ctx, claims, poly_evs)
     }
 }
 
@@ -143,19 +143,19 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
 
                 total_acc[0] = self.claim - total_acc[1];
 
-                // // ---- debugging
-                // debug_assert!( total_acc[0] == {
-                //     let mut acc0 = F::ZERO;
-                //     let mut args = vec![F::ZERO; n_polys];
-                //     for i in 0..half {
-                //         for j in 0..n_polys {
-                //             args[j] = self.polys[j][2 * i];
-                //         }
-                //         acc0 += self.f.exec(&args);
-                //     }
-                //     acc0
-                // });
-                // // ------------------------------
+                // ---- debugging
+                debug_assert!( total_acc[0] == {
+                    let mut acc0 = F::ZERO;
+                    let mut args = vec![F::ZERO; n_polys];
+                    for i in 0..half {
+                        for j in 0..n_polys {
+                            args[j] = self.polys[j][2 * i];
+                        }
+                        acc0 += self.f.exec(&args);
+                    }
+                    acc0
+                });
+                // ------------------------------
 
                 self.cached_unipoly = Some(from_evals(&total_acc));
             }
@@ -169,16 +169,63 @@ impl<F: Field, Fun: AlgFnSO<F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun> 
     }
 }
 
+pub struct DensePP<F: FormalField, Fun: AlgFnSO<F>> {
+    pub f: Fun,
+    _marker: PhantomData<F>
+}
+
+impl<F: FormalField, Fun: AlgFnSO<F>> DensePP<F, Fun> {
+    pub fn new(f: Fun) -> Self {
+        Self {f, _marker: PhantomData}
+    }
+}
+
+impl<Ctx: VerifierFieldCtx, Fun: AlgFnSO<Ctx::F>> ProtocolVerifier<Ctx> for DensePP<Ctx::F, Fun> {
+    type ClaimsBefore = SumEvalClaim<Ctx::F>;
+    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+
+    fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
+        let SumEvalClaim {value: ev, point} = claims;
+        let poly_evs = ctx.read_multi(self.f.n_ins());
+        (self.f.exec(&poly_evs) - ev).require();
+        SinglePointClaims{ evs: poly_evs, point }
+    }
+}
+
+impl<Ctx: ProverFieldCtx, Fun: AlgFnSO<Ctx::F>> ProtocolProver<Ctx> for DensePP<Ctx::F, Fun> {
+    type ClaimsBefore = SumEvalClaim<Ctx::F>;
+    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+    type ProverInput = Vec<Ctx::F>; // poly evs
+    type ProverOutput = ();
+
+    fn prove(
+        &self,
+        ctx: &mut Ctx,
+        claims: Self::ClaimsBefore,
+        advice: Self::ProverInput
+    ) -> (
+        Self::ClaimsAfter,
+        Self::ProverOutput
+    ) {
+        let SumEvalClaim {value: ev, point} = claims;
+        ctx.write_multi(self.f.n_ins(), &advice);
+        debug_assert!({(self.f.exec(&advice) - ev).require(); true});
+        (SinglePointClaims{ evs: advice, point }, ())
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::ops::Index;
-    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear5 as F, math::evaluate_multivar, random::Random};
+    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear5 as F, math::{eq_poly, evaluate_multivar, lte_ev}, random::Random};
     use fiat_shamir::{ProverState, VerifierState};
+    use itertools::Itertools;
     use p3_challenger::{DuplexChallenger};
-    use p3_field::{PrimeCharacteristicRing};
-    use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear, default_koalabear_poseidon2_16};
-    use rand::rngs::OsRng;
+    use p3_field::{PackedField, PrimeCharacteristicRing};
+    use p3_koala_bear::{KoalaBear, PackedQuinticExtensionFieldKB, Poseidon2KoalaBear, default_koalabear_poseidon2_16};
+    use rand::{SeedableRng, distr::{Distribution, StandardUniform, Uniform}, rngs::{OsRng, StdRng}};
    
     type KoalaChallenger = DuplexChallenger<KoalaBear, Poseidon2KoalaBear<16>, 16, 8>;
 
@@ -201,9 +248,10 @@ mod tests {
 
     #[test]
     fn dense_sumcheck_with_verifier_accepts_prover() {
-        let rng = &mut OsRng;
+        let rng = &mut StdRng::from_seed([0; 32]);
         let logsize = 6;
-        let polys : Vec<Vec<F>> = (0..2).map(|_| (0 .. 1 << logsize).map(|_|F::rand(rng)).collect()).collect();
+        let u = StandardUniform;
+        let polys : Vec<Vec<F>> = (0..2).map(|_| (0 .. 1 << logsize).map(|_|u.sample(rng)).collect()).collect();
 
         let f = TestFunction{};
 
@@ -213,7 +261,7 @@ mod tests {
             let args : Vec<F> = polys.iter().map(|poly| poly[i]).collect();
             output.push(f.exec(&args));
         }
-        
+
         let permutation = default_koalabear_poseidon2_16();
         let challenger = KoalaChallenger::new(permutation);
 

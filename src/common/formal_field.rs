@@ -1,7 +1,7 @@
 use std::ops::{Div, DivAssign};
 use p3_field::Algebra;
 
-pub trait FormalField: Algebra<Self::Constant> + Div<Output = Self> + DivAssign + Copy {
+pub trait FormalField: Algebra<Self::Constant> + Div<Output = Self> + DivAssign + Copy + Send + Sync {
     type Constant: Field;
 
     /// Requires that the element is 0. In native execution, this is just an assertion.

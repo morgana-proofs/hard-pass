@@ -7,39 +7,14 @@ use crate::{
         algfn::AlgFnSO,
         claims::{LinEvalClaim, SinglePointClaims, SumEvalClaim},
         contexts::{ProverFieldCtx, VerifierFieldCtx}, formal_field::{Field, FormalField},
-        math::{bind_dense_poly_nonpar, eq_poly, eq_poly_scaled, evaluate_univar, from_evals},
+        math::{bind_dense_poly_nonpar, eq_ev, eq_poly, eq_poly_scaled, evaluate_univar, from_evals},
         protocol::{ProtocolProver, ProtocolVerifier}},
         sumcheck::{
             dense_sumcheck::DenseSumcheckableSO,
             generic::{GenericSumcheckProver, GenericSumcheckVerifier},
-            glue::{TwPPClaimBefore, TwPPInput, TwPostProcessing},
             sumcheckable::Sumcheckable
         }
     };
-
-// This version of Twist works as follows:
-
-// There is a diff(t) polynomial and acc(t) polynomial
-// There is also init(x) polynomial, which normally = 0, but sometimes it could be not (say if we are doing continuation, idk)
-// read always happens after diff, so we do |t| diffs and |t| reads and values of ram do not include init(x) but do include last state
-
-// acc(t) is upgraded to Acc(x, t) (presumably using logup*)
-// To evaluate Acc(rx, rt) we need to compute <acc_* eq[rt], eq[rx]>. The validity of acc_* eq[rt] is checked by logup* argument.
-// square-decomposition is not done because we assume RAM to be relatively small (|x| << |t|)
-
-// A polynomial RAM(x, t) = init(x) + sum[t'] Lteq(t', t) Acc(x, t') diff(t'). This sumcheck is only over t',
-// so it is dense and in general only issue is actually evaluating Acc and Lt in given challenge points (which is not hard)
-
-// A polynomial read(t) = sum[x, t'] RAM(x, t') Acc(x, t') eq(t, t')
-// This is referred as "hard phase" because the sumcheck here is sparse.
-
-// As usual, phases are happening in an order reverse to the data-flow, so hard phase goes first.
-// We will refer to them as "read phase", "write phase" and "spark phase". Read phase is hard.
-// Additional commitments (to acc_* eq[rt]) happen before spark phase only, the rest is pure sumchecks.
-
-// I will for now ignore the idea that we might also need to query RAM final state for continuation; this is essentially
-// trivial to achieve and is not expected to have any significant overhead.
-
 
 /// Read (hard) phase of the Twist protocol.
 /// This is sumcheck of the form sum_{x, t} eq(rt, t) RAM(x, t) Acc(x, t) = READ(rt) 
@@ -59,8 +34,8 @@ impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwReadPhase {
         let claims = x_rounds.verify(ctx, claims);
         let t_rounds = GenericSumcheckVerifier::new(3, self.t_logsize);
         let claims = t_rounds.verify(ctx, claims);
-        let pp = TwPostProcessing{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
-        pp.verify(ctx, TwPPClaimBefore{ claims, rt })
+        let pp = TwReadPhasePP{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
+        pp.verify(ctx, TwReadPhasePPClaimBefore{ claims, rt })
     }
 }
 
@@ -123,8 +98,8 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
         let t_rounds = GenericSumcheckProver::new(3, self.t_logsize);
         let (claims, sumcheckable_t) = t_rounds.prove(ctx, claims, sumcheckable_t);
         let final_evals = sumcheckable_t.final_evals();
-        let pp = TwPostProcessing{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
-        let ret = pp.prove(ctx, TwPPClaimBefore{ claims, rt }, TwPPInput{ram_ev: final_evals[0], acc_ev: final_evals[1]});
+        let pp = TwReadPhasePP{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
+        let ret = pp.prove(ctx, TwReadPhasePPClaimBefore{ claims, rt }, TwReadPhasePPInput{ram_ev: final_evals[0], acc_ev: final_evals[1]});
     
         let end = Instant::now();
         println!("t rounds: {} ms", (end - start).as_millis());
@@ -410,6 +385,60 @@ impl<F: Field> Sumcheckable<F> for TwReadPhaseSumcheckableX<F> {
     }
 }
 
+pub struct TwReadPhasePP {
+    pub x_logsize: usize,
+    pub t_logsize: usize,
+}
+
+pub struct TwReadPhasePPClaimBefore<F> {
+    pub claims: SumEvalClaim<F>,
+    pub rt: Vec<F>,
+}
+
+impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwReadPhasePP {
+    type ClaimsBefore = TwReadPhasePPClaimBefore<Ctx::F>;
+    type ClaimsAfter = SinglePointClaims<Ctx::F>; // (RAM, Acc) in point (x|t); eq-eval should be eliminated
+
+    fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
+        let TwReadPhasePPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
+        debug_assert!(point.len() == self.t_logsize + self.x_logsize);
+        let (_ux, ut) = point.split_at(self.x_logsize);
+        let evs = ctx.read_multi(2);
+        (evs[0] * evs[1] * eq_ev(&rt, ut) - ev).require();
+        SinglePointClaims { evs, point }
+    }
+}
+
+pub struct TwReadPhasePPInput<F> {
+    pub ram_ev: F,
+    pub acc_ev: F,
+}
+
+impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhasePP {
+    type ClaimsBefore = TwReadPhasePPClaimBefore<Ctx::F>;
+    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+
+    type ProverInput = TwReadPhasePPInput<Ctx::F>;
+    type ProverOutput = ();
+
+    fn prove(
+        &self,
+        ctx: &mut Ctx,
+        claims: Self::ClaimsBefore,
+        advice: Self::ProverInput
+    ) -> (
+        Self::ClaimsAfter,
+        Self::ProverOutput
+    ) {
+        let TwReadPhasePPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
+        debug_assert!(point.len() == self.t_logsize + self.x_logsize);
+        let (ut, _) = point.split_at(self.x_logsize);
+        let evs = vec![advice.ram_ev, advice.acc_ev];
+        ctx.write_multi(2, &evs);
+        (SinglePointClaims { evs, point }, ())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,7 +456,7 @@ mod tests {
         let t_logsize = 10; // relatively small values so we can materialize ram naively and validate everything
         let n_snapshots = 12; // affects parallelization
         
-        let rng = &mut OsRng;
+        let rng = &mut StdRng::from_seed([0; 32]);
 
         // generate random access pattern
         let acc = (0 .. 1 << t_logsize).map(|_| (rng.try_next_u32().unwrap() % (1 << x_logsize)) as usize).collect::<Vec<_>>();
