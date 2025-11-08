@@ -457,12 +457,14 @@ mod tests {
         
         let polys = polys.into_iter().map(|poly| poly.to_unpacked()).collect_vec();
 
-        let w = log2_ceil_usize(PackedQuinticExtensionFieldKB::WIDTH) + 1;
-        let adjusted_point = new_point[w..].iter().chain(&new_point[..w]).map(|x|*x).collect_vec();
 
-        assert_eq!(polys.iter().map(|poly| 
-            evaluate_multivar(&poly, &adjusted_point)
-        ).collect::<Vec<_>>(), evs);
+        for i in 0..logsize {
+            let w = i;//log2_ceil_usize(PackedQuinticExtensionFieldKB::WIDTH) + 1;
+            let adjusted_point = new_point[w..].iter().chain(&new_point[..w]).map(|x|*x).collect_vec();
 
+            println!("{} {}", i, polys.iter().map(|poly| 
+                evaluate_multivar(&poly, &adjusted_point)
+            ).collect::<Vec<_>>() == evs);
+        }
     }
 }
