@@ -413,6 +413,11 @@ mod tests {
         let u = StandardUniform;
         let polys : Vec<Vec<F>> = (0..2).map(|_| (0 .. 1 << logsize).map(|_|u.sample(rng)).collect()).collect();
 
+        let some_data = polys[0].clone();
+        let packed_data = PackedQuinticExtensionFieldKB::pack(some_data.clone());
+        let unpacked_data = PackedQuinticExtensionFieldKB::unpack(packed_data);
+        assert!(some_data == unpacked_data);
+
         let f = TestFunction{};
 
         let mut output = vec![];
