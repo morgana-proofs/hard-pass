@@ -259,8 +259,8 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> Sumcheckable<F> for DenseSumcheckab
             Some(p) => {return p.clone()},
             None => {
                 let half = 1 << (self.num_vars - self.round_idx - log2_ceil_usize(A::WIDTH) - 1);
-                println!("{}", A::WIDTH);
-                assert_eq!(half, self.polys[0].len());
+                println!("half: {}", half);
+                println!("polys[0]: {}", self.polys[0].len());
                 let n_polys = self.polys.len();
 
                 let num_tasks = 8 * current_num_threads();
