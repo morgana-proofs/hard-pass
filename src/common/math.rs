@@ -285,9 +285,9 @@ pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
 }
 
 pub fn evaluate_packed_multivar<F: Field, A: PackedField<Scalar = F>> (poly: &[A], pt: &[F]) -> F {
-    let eq = eq_poly(&pt[A::WIDTH..]);
+    let eq = eq_poly(&pt[1 << A::WIDTH ..]);
     let p = poly.par_iter().zip_eq(eq.par_iter()).map(|(&a, &b)| a * b).par_fold_reduce(||A::ZERO, |a, b| a + b, |a, b| a + b);
     let p = A::unpack(vec![p]);
-    let eq = eq_poly(&pt[..A::WIDTH]); 
+    let eq = eq_poly(&pt[.. 1 << A::WIDTH]); 
     p.iter().zip(eq.iter()).map(|(&a, &b)| a * b).fold(F::ZERO, |a, b| a + b)
 }
