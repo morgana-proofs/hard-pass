@@ -20,7 +20,7 @@ The protocol includes the following stages (listed here in dataflow order, so la
 3. A polynomial $\mathsf{read}(t) = \underset{x, t'}\sum \mathsf{RAM}(x, t') \mathsf{Acc}(x, t') \mathsf{eq}(t, t')$.
     This phase is hard because the sumcheck here is sparse.
 
-We will refer to them as "read phase", "sum phase" and "spark phase". Read phase is hard. Note: we might rename read phase to write phase at some point, considering read is actually write...
+We will refer to them as "read phase", "sum phase" and "lookup phase". Read phase is hard. Note: we might rename read phase to write phase at some point, considering read is actually write...
 
 ### Read phase
 

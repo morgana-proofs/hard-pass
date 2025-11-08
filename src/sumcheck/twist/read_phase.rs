@@ -12,7 +12,7 @@ use crate::{
         sumcheck::{
             dense_sumcheck::DenseSumcheckableSO,
             generic::{GenericSumcheckProver, GenericSumcheckVerifier},
-            sumcheckable::Sumcheckable
+            sumcheckable::Sumcheckable, twist::sum_phase::{TwSumPhaseAdvice, TwSumPhaseClaimsBefore}
         }
     };
 
@@ -25,7 +25,7 @@ pub struct TwReadPhase {
 
 impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwReadPhase {
     type ClaimsBefore = LinEvalClaim<Ctx::F>; // evaluation of READ in point rt
-    type ClaimsAfter = SinglePointClaims<Ctx::F>; // (RAM, Acc)
+    type ClaimsAfter = TwReadPhaseClaimsAfter<Ctx::F>;
 
     fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
         let rt = claims.point;
@@ -46,11 +46,13 @@ pub struct TwReadPhaseAdvice<F> {
     pub n_snapshots: usize,
 }
 
+pub type TwReadPhaseClaimsAfter<F> = TwSumPhaseClaimsBefore<F>;
+
 impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
     type ClaimsBefore = LinEvalClaim<Ctx::F>;
-    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+    type ClaimsAfter = TwReadPhaseClaimsAfter<Ctx::F>;
     type ProverInput = TwReadPhaseAdvice<Ctx::F>;
-    type ProverOutput = ();
+    type ProverOutput = TwSumPhaseAdvice<Ctx::F>;
     
     fn prove(
         &self,
@@ -61,7 +63,7 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
         Self::ClaimsAfter,
         Self::ProverOutput
     ) {
-        let mut start = Instant::now();
+        // let mut start = Instant::now();
 
         let TwReadPhaseAdvice { diff, acc, init_state, n_snapshots } = advice;
 
@@ -69,7 +71,7 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
         let claims = SumEvalClaim {value: claims.ev, point: vec![]}; // transform into initial claim about sum
 
         let sumcheckable_x = TwReadPhaseSumcheckableX::new(
-            diff,
+            diff.clone(), //we will use diff multiple times
             acc,
             init_state,
             &rt,
@@ -78,22 +80,30 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
             claims.value
         );
 
-        let end = Instant::now();
-        println!("prep: {} ms", (end - start).as_millis());
-        let start = end;
+        // let end = Instant::now();
+        // println!("prep: {} ms", (end - start).as_millis());
+        // let start = end;
 
         let x_rounds = GenericSumcheckProver::new(2, self.x_logsize);
         let (claims, sumcheckable_x) = x_rounds.prove(ctx, claims, sumcheckable_x);
 
-        let end = Instant::now();
-        println!("x rounds: {} ms", (end - start).as_millis());
-        let start = end;
+        // let end = Instant::now();
+        // println!("x rounds: {} ms", (end - start).as_millis());
+        // let start = end;
 
+        let init_ev = sumcheckable_x.ramdata.snapshots[0][0];
         let sumcheckable_t = sumcheckable_x.finish();
-        
-        let end = Instant::now();
-        println!("x -> t transition: {} ms", (end - start).as_millis());
-        let start = end;
+        // here, we will steal some useful data from it for the next phase
+
+        let prover_pass_hint = TwSumPhaseAdvice{
+            init_ev,
+            diff,
+            acc_rx: sumcheckable_t.polys[1].clone()
+        };
+
+        // let end = Instant::now();
+        // println!("x -> t transition: {} ms", (end - start).as_millis());
+        // let start = end;
         
         let t_rounds = GenericSumcheckProver::new(3, self.t_logsize);
         let (claims, sumcheckable_t) = t_rounds.prove(ctx, claims, sumcheckable_t);
@@ -101,10 +111,10 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhase {
         let pp = TwReadPhasePP{ x_logsize: self.x_logsize, t_logsize: self.t_logsize };
         let ret = pp.prove(ctx, TwReadPhasePPClaimBefore{ claims, rt }, TwReadPhasePPInput{ram_ev: final_evals[0], acc_ev: final_evals[1]});
     
-        let end = Instant::now();
-        println!("t rounds: {} ms", (end - start).as_millis());
+        // let end = Instant::now();
+        // println!("t rounds: {} ms", (end - start).as_millis());
         
-        ret
+        (ret.0, prover_pass_hint)
     }
     
 
@@ -397,7 +407,7 @@ pub struct TwReadPhasePPClaimBefore<F> {
 
 impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwReadPhasePP {
     type ClaimsBefore = TwReadPhasePPClaimBefore<Ctx::F>;
-    type ClaimsAfter = SinglePointClaims<Ctx::F>; // (RAM, Acc) in point (x|t); eq-eval should be eliminated
+    type ClaimsAfter = TwReadPhaseClaimsAfter<Ctx::F>;
 
     fn verify(&self, ctx: &mut Ctx, claims: Self::ClaimsBefore) -> Self::ClaimsAfter {
         let TwReadPhasePPClaimBefore { claims: SumEvalClaim { value: ev, point }, rt} = claims;
@@ -405,7 +415,7 @@ impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwReadPhasePP {
         let (_ux, ut) = point.split_at(self.x_logsize);
         let evs = ctx.read_multi(2);
         (evs[0] * evs[1] * eq_ev(&rt, ut) - ev).require();
-        SinglePointClaims { evs, point }
+        TwReadPhaseClaimsAfter{ point, ram_ev: evs[0], acc_ev: evs[1] }
     }
 }
 
@@ -416,7 +426,7 @@ pub struct TwReadPhasePPInput<F> {
 
 impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhasePP {
     type ClaimsBefore = TwReadPhasePPClaimBefore<Ctx::F>;
-    type ClaimsAfter = SinglePointClaims<Ctx::F>;
+    type ClaimsAfter = TwReadPhaseClaimsAfter<Ctx::F>;
 
     type ProverInput = TwReadPhasePPInput<Ctx::F>;
     type ProverOutput = ();
@@ -435,7 +445,7 @@ impl<Ctx: ProverFieldCtx> ProtocolProver<Ctx> for TwReadPhasePP {
         let (ut, _) = point.split_at(self.x_logsize);
         let evs = vec![advice.ram_ev, advice.acc_ev];
         ctx.write_multi(2, &evs);
-        (SinglePointClaims { evs, point }, ())
+        (TwReadPhaseClaimsAfter {point, ram_ev: evs[0], acc_ev: evs[1]}, ())
     }
 }
 
@@ -503,9 +513,7 @@ mod tests {
         
         let mut transcript_v = VerifierState::new(proof.to_vec(), challenger.clone());
 
-        let SinglePointClaims { evs, point } = protocol.verify(&mut transcript_v, claims);
-        let ram_ev = evs[0];
-        let acc_ev = evs[1];
+        let TwReadPhaseClaimsAfter{ point, ram_ev, acc_ev } = protocol.verify(&mut transcript_v, claims);
         
         let ram = ram.into_iter().flatten().collect::<Vec<_>>();
 
@@ -518,16 +526,16 @@ mod tests {
         assert!(evaluate_multivar(&acc, &point) == acc_ev);
     }
 
-    #[test]
-    fn bench_read_phase () {
-        _bench_read_phase(5, 24, 1);
-        _bench_read_phase(5, 24, 16);
-        _bench_read_phase(16, 22, 1);
-        _bench_read_phase(16, 22, 16);        
-    }
+    // #[test]
+    // fn bench_read_phase () {
+    //     _bench_read_phase(5, 24, 1);
+    //     _bench_read_phase(5, 24, 16);
+    //     _bench_read_phase(16, 22, 1);
+    //     _bench_read_phase(16, 22, 16);        
+    // }
 
     fn _bench_read_phase(x_logsize: usize, t_logsize: usize, n_snapshots: usize) {
-        println!("Benchmarking with x_logsize = {x_logsize}, t_logsize = {t_logsize}, n_snapshots = {n_snapshots}");
+        // println!("Benchmarking with x_logsize = {x_logsize}, t_logsize = {t_logsize}, n_snapshots = {n_snapshots}");
 
         let rng = &mut StdRng::from_seed([0; 32]);
         let acc = (0 .. 1 << t_logsize).map(|_| (rng.try_next_u32().unwrap() % (1 << x_logsize)) as usize).collect::<Vec<_>>();
