@@ -117,20 +117,20 @@ mod tests {
         let init_state = (0 .. 1 << x_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
 
         // compute ram and read directly:
-        let mut ram = vec![];
+        // let mut ram = vec![];
         let mut read = vec![];
         let mut state = init_state.clone();
         for i in 0 .. 1 << t_logsize {
             state[acc_indices[i]] += diff[i];
             read.push(state[acc_indices[i]]);
-            ram.push(state.clone())
+            // ram.push(state.clone())
         }
         
-        let ram_materialized = ram.into_iter().flatten().collect::<Vec<_>>();
-        let mut acc_materialized = vec![F::ZERO; 1 << (x_logsize + t_logsize)];
-        for i in 0 .. (1 << t_logsize) {
-            acc_materialized[(i << x_logsize) + acc_indices[i]] = F::ONE;
-        }
+        // let ram_materialized = ram.into_iter().flatten().collect::<Vec<_>>();
+        // let mut acc_materialized = vec![F::ZERO; 1 << (x_logsize + t_logsize)];
+        // for i in 0 .. (1 << t_logsize) {
+        //     acc_materialized[(i << x_logsize) + acc_indices[i]] = F::ONE;
+        // }
 
         // generate evaluation random point:
         let rt = (0 .. t_logsize).map(|_| F::rand(rng) ).collect::<Vec<_>>();
@@ -168,7 +168,7 @@ mod tests {
         let claims = protocol_read.verify(&mut transcript_v, init_claims.clone());
         let claims = protocol_sum.verify(&mut transcript_v, claims);       
         // these do not participate in the lookup phase, so we need to propagate them further
-        let rx_phase_2 = claims.rx.clone(); // memorize this for future usage, technically I could use init_ev_claim but it might be eventually optimized out
+        let rt_phase_2 = claims.rt.clone(); // memorize this for future usage, technically I could use init_ev_claim but it might be eventually optimized out
         let init_ev_claim = LinEvalClaim{ point: claims.rx.clone(), ev: claims.init_ev};
         let diff_ev_claim = LinEvalClaim{ point: claims.rt.clone(), ev: claims.diff_ev};        
         let claims = TwLookupPhaseClaimsBefore::from_sum_phase(&claims);
@@ -183,10 +183,10 @@ mod tests {
         
         let acc_idx_as_field = acc_indices.iter().map(|&i| F::from_prime_subfield(KoalaBear::from_u64(i as u64))).collect_vec();
 
-        let eqpoly_rx = eq_poly(&rx_phase_2); // easy way to recover in what point 
+        let eqpoly_rt = eq_poly(&rt_phase_2); // easy way to recover in what point 
         let mut pshf = vec![F::ZERO; 1 << x_logsize];
         for i in 0 .. 1 << t_logsize {
-            pshf[acc_indices[i]] += eqpoly_rx[i];
+            pshf[acc_indices[i]] += eqpoly_rt[i];
         }
 
         assert!(acc_idx_ev_claim.ev == evaluate_multivar(&acc_idx_as_field, &acc_idx_ev_claim.point));

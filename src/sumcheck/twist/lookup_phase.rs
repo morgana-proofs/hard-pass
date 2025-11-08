@@ -23,8 +23,9 @@ impl<F: Copy> TwLookupPhaseClaimsBefore<F> {
 
 pub struct TwLookupPhaseClaimsAfter<F> {
     pub rt: Vec<F>,
-    pub rx: Vec<F>, // these points are new
     pub acc_indices_ev: F, // evaluated in rt
+
+    pub rx: Vec<F>, // these points are new
     pub pushforward_ev: F, // claim about new commitment to pushforward, evaluated in rx
 }
 
@@ -36,9 +37,9 @@ pub struct LookupPhaseAdvice {
 
 // Protocol:
 // 1. takes claim about Acc(rx, rt)
-// 2. this is [acc_indices_* (eq_rx)](rt) claim
-// 3. commit to [acc_indices_* (eq_rx)]
-// 4. run logup* to obtain other claim about acc_indices_* (eq_rx)
+// 2. this is [acc_indices_* (eq_rt)](rx) claim
+// 3. commit to [acc_indices_* (eq_rt)]
+// 4. run logup* to obtain other claim about acc_indices_* (eq_rt)
 // 5. merge claims (old claim from 2 and new one which falls out of gkr) and output
 
 impl<F, EF, Challenger> ProtocolVerifier<VerifierState<F, EF, Challenger>> for TwLookupPhase
