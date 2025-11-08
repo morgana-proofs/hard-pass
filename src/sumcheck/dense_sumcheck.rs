@@ -256,7 +256,7 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> Sumcheckable<F> for DenseSumcheckab
         match self.cached_response.as_ref() {
             Some(p) => {return p.clone()},
             None => {
-                let half = 1 << (self.num_vars - self.round_idx - 1);
+                let half = 1 << (self.num_vars - self.round_idx - log2_ceil_usize(A::WIDTH) - 1);
                 let n_polys = self.polys.len();
 
                 let num_tasks = 8 * current_num_threads();
