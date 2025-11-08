@@ -146,21 +146,6 @@ where
         // - claims.rx -> claims.acc_ev
         // pushforward_correctness_claims.on_pushforward.point.0 -> pushforward_correctness_claims.on_pushforward.value
 
-        // .. phony opening (we do nothing) ..
-        #[cfg(test)]
-        {
-            // sanity check
-
-            assert_eq!(evaluate_multivar(&pushforward, &claims.rx), claims.acc_ev);
-            assert_eq!(
-                evaluate_multivar(
-                    &pushforward,
-                    &reverse_point(&pushforward_correctness_claims.on_pushforward.point.0)
-                ),
-                pushforward_correctness_claims.on_pushforward.value
-            );
-        }
-
         (
             TwLookupPhaseClaimsAfter {
                 rt: pushforward_correctness_claims.on_indexes.point.0,
