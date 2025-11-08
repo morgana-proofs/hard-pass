@@ -49,6 +49,8 @@ where
         None,
     );
 
+    dbg!(prover_state.challenger().state());
+
     let final_point_left = claim_left.point[1..].to_vec();
     let indexes_final_eval = c - eval_c_minux_indexes;
     prover_state.add_extension_scalar(indexes_final_eval);
@@ -78,10 +80,12 @@ where
 
     let (quotient_left, claim_left) = verify_gkr_quotient(verifier_state, log_indexes_len + 1)?;
     let (quotient_right, claim_right) = verify_gkr_quotient(verifier_state, log_table_len + 1)?;
+    dbg!(verifier_state.challenger().state());
 
     if quotient_left != quotient_right {
         return Err(ProofError::InvalidProof);
     }
+    dbg!(1);
 
     let final_point_left = MultilinearPoint(claim_left.point[1..].to_vec());
     let index_openined_value = verifier_state.next_extension_scalar()?;
@@ -93,6 +97,7 @@ where
     {
         return Err(ProofError::InvalidProof);
     }
+
 
     let final_point_right = claim_right.point[1..].to_vec();
     let pushforward_opening_value = verifier_state.next_extension_scalar()?;

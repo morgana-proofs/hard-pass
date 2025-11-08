@@ -5,6 +5,8 @@ use p3_field::PrimeField64;
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::common::math::evaluate_multivar;
+use crate::common::math::reverse_point;
+use crate::common::math::reverse_varriable_ordering;
 use crate::logup_star::verify_pushforward_is_well_formed;
 use crate::{
     common::{
@@ -89,7 +91,7 @@ where
         assert_eq!(
             evaluate_multivar(
                 &committed_pushforward,
-                &pushforward_correctness_claims.on_pushforward.point.0
+                &reverse_point(&pushforward_correctness_claims.on_pushforward.point.0)
             ),
             pushforward_correctness_claims.on_pushforward.value
         );
@@ -137,7 +139,7 @@ where
                 .par_iter()
                 .map(|&i| PF::<EF>::from_usize(i))
                 .collect::<Vec<_>>(),
-            &eq_poly_t,
+            &reverse_varriable_ordering(&eq_poly_t),
             &pushforward,
         );
 
@@ -146,6 +148,19 @@ where
         // pushforward_correctness_claims.on_pushforward.point.0 -> pushforward_correctness_claims.on_pushforward.value
 
         // .. phony opening (we do nothing) ..
+        #[cfg(test)]
+        {
+            // sanity check
+
+            assert_eq!(evaluate_multivar(&pushforward, &claims.rx), claims.acc_ev);
+            assert_eq!(
+                evaluate_multivar(
+                    &pushforward,
+                    &reverse_point(&pushforward_correctness_claims.on_pushforward.point.0)
+                ),
+                pushforward_correctness_claims.on_pushforward.value
+            );
+        }
 
         (
             TwLookupPhaseClaimsAfter {
