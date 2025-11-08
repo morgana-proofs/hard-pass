@@ -455,10 +455,13 @@ mod tests {
 
         let SinglePointClaims { point : mut new_point, evs } = output_claims;
         
-        let polys = polys.into_iter().map(|poly| poly.to_packed()).collect_vec();
+        let polys = polys.into_iter().map(|poly| poly.to_unpacked()).collect_vec();
+
+        let w = log2_ceil_usize(PackedQuinticExtensionFieldKB::WIDTH);
+        let adjusted_point = new_point[w..].iter().chain(&new_point[..w]).map(|x|*x).collect_vec();
 
         assert_eq!(polys.iter().map(|poly| 
-            evaluate_packed_multivar(&poly, &new_point)
+            evaluate_multivar(&poly, &adjusted_point)
         ).collect::<Vec<_>>(), evs);
 
     }
