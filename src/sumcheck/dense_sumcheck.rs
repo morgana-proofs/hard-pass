@@ -303,19 +303,19 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> Sumcheckable<F> for DenseSumcheckab
 
                 total_acc[0] = self.claim - total_acc[1];
 
-                // ---- debugging
-                // debug_assert!( total_acc[0] == {
-                //     let mut acc0 = F::ZERO;
-                //     let mut args = vec![F::ZERO; n_polys];
-                //     for i in 0..half {
-                //         for j in 0..n_polys {
-                //             args[j] = self.polys[j][2 * i];
-                //         }
-                //         acc0 += self.f.exec(&args);
-                //     }
-                //     acc0
-                // });
-                // ------------------------------
+                //---- debugging
+                debug_assert!( total_acc[0] == {
+                    let mut acc0 = F::ZERO;
+                    let mut args = vec![A::ZERO; n_polys];
+                    for i in 0..half {
+                        for j in 0..n_polys {
+                            args[j] = self.polys[j][2 * i];
+                        }
+                        acc0 += self.f.exec(&args).tr();
+                    }
+                    acc0
+                });
+                //------------------------------
 
                 self.cached_response = Some(from_evals(&total_acc));
             }
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn dense_sumcheck_with_verifier_accepts_prover() {
         let rng = &mut StdRng::from_seed([0; 32]);
-        let logsize = 7;
+        let logsize = 15;
         let u = StandardUniform;
         let polys : Vec<Vec<F>> = (0..2).map(|_| (0 .. 1 << logsize).map(|_|u.sample(rng)).collect()).collect();
 
