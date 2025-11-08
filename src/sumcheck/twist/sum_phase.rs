@@ -35,9 +35,9 @@ pub struct TwSumPhasePPClaimsAfter<F> {
 pub struct TwSumPhaseClaimsAfter<F> {
     pub rx: Vec<F>,
     pub rt: Vec<F>,
-    pub init_ev: F, // this is in rt = point[x_logsize..]
+    pub init_ev: F, // this is in rx
     pub acc_ev: F, // this is in full point (rx | rt)
-    pub diff_ev: F, // this is in rx = point[..x_logsize]
+    pub diff_ev: F, // this is in rt
 }
 
 impl<Ctx: VerifierFieldCtx> ProtocolVerifier<Ctx> for TwSumPhase {
