@@ -38,7 +38,7 @@ where
         None,
     );
 
-    let increments = (0..poly_eq.len())
+    let increments = (0..pushforward.len())
         .into_par_iter()
         .map(PF::<EF>::from_usize)
         .collect::<Vec<_>>();
