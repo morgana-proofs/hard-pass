@@ -296,7 +296,7 @@ fn bit_reverse(x: usize, n_bits: usize) -> usize {
     result
 }
 
-pub fn reverse_varriable_ordering<F: Copy + Send + Sync>(input: &[F]) -> Vec<F> {
+pub fn reverse_variable_ordering<F: Copy + Send + Sync>(input: &[F]) -> Vec<F> {
     // bit-reverse every index
     let n = input.len();
     assert!(n.is_power_of_two());

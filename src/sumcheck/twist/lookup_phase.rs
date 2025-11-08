@@ -6,7 +6,7 @@ use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::common::math::evaluate_multivar;
 use crate::common::math::reverse_point;
-use crate::common::math::reverse_varriable_ordering;
+use crate::common::math::reverse_variable_ordering;
 use crate::logup_star::verify_pushforward_is_well_formed;
 use crate::{
     common::{
@@ -134,12 +134,11 @@ where
         // 3) verify the committed pushforward is well-formed
         let pushforward_correctness_claims = prove_pushforward_is_well_formed(
             ctx,
-            &advice
-                .acc_indices
+            &reverse_variable_ordering(&advice.acc_indices)
                 .par_iter()
                 .map(|&i| PF::<EF>::from_usize(i))
                 .collect::<Vec<_>>(),
-            &reverse_varriable_ordering(&eq_poly_t),
+            &reverse_variable_ordering(&eq_poly_t),
             &pushforward,
         );
 
