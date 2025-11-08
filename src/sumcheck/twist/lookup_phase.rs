@@ -143,8 +143,10 @@ where
         );
 
         // 4) open the committed pushforward at 2 points:
-        // - claims.rx -> claims.acc_ev
-        // pushforward_correctness_claims.on_pushforward.point.0 -> pushforward_correctness_claims.on_pushforward.value
+        // - point: claims.rx, value: claims.acc_ev
+        // - point: pushforward_correctness_claims.on_pushforward.point.0, value: pushforward_correctness_claims.on_pushforward.value
+
+        // .. we do nothing (Phony opening) ..
 
         (
             TwLookupPhaseClaimsAfter {
