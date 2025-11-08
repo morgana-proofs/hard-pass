@@ -230,7 +230,7 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> DenseSumcheckableSOInternal<F, Fun,
         let l = polys.len();
         assert_eq!(l, f.n_ins());
         for i in 0..l {
-            assert_eq!(polys[i].len(), 1 << (num_vars - A::WIDTH));
+            assert_eq!(polys[i].len(), 1 << (num_vars - log2_ceil_usize(A::WIDTH)));
         }
         Self { polys, f, num_vars, round_idx: 0, cached_response: None, rs: vec![], claim: claim_hint }
     }
