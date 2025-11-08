@@ -8,10 +8,14 @@ use p3_koala_bear::{KoalaBear, PackedQuinticExtensionFieldKB};
 use crate::common::{formal_field::Field, koala_passthrough::KoalaBear5};
 
 pub trait AlgTr<F>: Algebra<F> + Copy + Send + Sync {
+    const WIDTH: usize;
+
     fn tr(&self) -> F;
 }
 
 impl<F: Field> AlgTr<F> for F {
+    const WIDTH: usize = 1;
+
     fn tr(&self) -> F {
         *self
     }
@@ -20,7 +24,6 @@ impl<F: Field> AlgTr<F> for F {
 pub trait PackedField: AlgTr<Self::Scalar>
 {
     type Scalar: Field;
-    const WIDTH: usize;
 
     /// panics if vals.len() is not divisible by Self::WIDTH
     fn pack(vals: Vec<Self::Scalar>) -> Vec<Self>;
@@ -28,6 +31,8 @@ pub trait PackedField: AlgTr<Self::Scalar>
 }
 
 impl AlgTr<KoalaBear5> for PackedQuinticExtensionFieldKB {
+    const WIDTH: usize = <<KoalaBear as p3_field::Field>::Packing as p3_field::PackedValue>::WIDTH;
+
     fn tr(&self) -> KoalaBear5 {
         Self::unpack(std::vec![*self]).into_iter().sum()
     }
@@ -35,8 +40,6 @@ impl AlgTr<KoalaBear5> for PackedQuinticExtensionFieldKB {
 
 impl PackedField for PackedQuinticExtensionFieldKB {
     type Scalar = KoalaBear5;
-
-    const WIDTH: usize = <<KoalaBear as p3_field::Field>::Packing as p3_field::PackedValue>::WIDTH;
 
     fn pack(vals: Vec<Self::Scalar>) -> Vec<Self> {
         assert!(vals.len() % Self::WIDTH == 0);
