@@ -178,6 +178,13 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> DenseSumcheckableSO<
 
 impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> Sumcheckable<F> for DenseSumcheckableSO<F, Fun, A> {
     fn bind(&mut self, r: F) {
+        
+        match self {
+            Self::Packed(s) => s.bind(r),
+            Self::Unpacked(s) => s.bind(r),
+            _ => panic!(),
+        }
+        
         if self.remaining_vars() == MIN_VARS_FOR_PACKING {
             // Go from packed to unpacked form.
             let dummy = Self::None;
@@ -187,12 +194,6 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> Sumcheckable<F> for 
             let polys = polys.into_iter().map(|poly| A::unpack(poly)).collect_vec();
             let s = DenseSumcheckableSOInternal{ polys, rs, f, num_vars, round_idx, cached_response, claim };
             *self = DenseSumcheckableSO::Unpacked(s);
-        }
-
-        match self {
-            Self::Packed(s) => s.bind(r),
-            Self::Unpacked(s) => s.bind(r),
-            _ => panic!(),
         }
     }
 
