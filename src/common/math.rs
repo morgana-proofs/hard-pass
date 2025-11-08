@@ -1,7 +1,8 @@
 use std::iter::once;
 use multilinear_toolkit::prelude::{EvaluationsList, MultilinearPoint};
+use p3_field::Algebra;
 use p3_maybe_rayon::prelude::*;
-use crate::common::formal_field::{Field, FormalField};
+use crate::common::{formal_field::{Field, FormalField}, pack::{AlgTr, PackedField}};
 use itertools::Itertools;
 
 pub fn evaluate_univar<F: FormalField>(poly: &[F], x: &F) -> F {
@@ -28,15 +29,15 @@ pub fn decompress<F: FormalField>(sum: &F, coeffs_without_1st: &[F]) -> Vec<F> {
     once(&coeffs_without_1st[0]).chain(once(&first_coeff)).chain(coeffs_without_1st[1..].iter()).map(|x| x.clone()).collect()
 }
 
-pub fn bind_dense_poly<F: Field>(poly: &mut Vec<F>, t: F) {
+pub fn bind_dense_poly<F: Field, A: AlgTr<F>>(poly: &mut Vec<A>, r: F) {
     let half = poly.len() / 2;
-    *poly = (0..half).into_par_iter().map(|i| poly[2*i] + t * (poly[2*i + 1] - poly[2*i])).collect();
+    *poly = (0..half).into_par_iter().map(|i| poly[2*i] + (poly[2*i + 1] - poly[2*i]) * r).collect();
 }
 
-pub fn bind_dense_poly_nonpar<F: Field>(poly: &mut Vec<F>, t: F) {
-    let half = poly.len() / 2;
-    *poly = (0..half).into_iter().map(|i| poly[2*i] + t * (poly[2*i + 1] - poly[2*i])).collect();
-}
+// pub fn bind_dense_poly_nonpar<F: Field>(poly: &mut Vec<F>, t: F) {
+//     let half = poly.len() / 2;
+//     *poly = (0..half).into_iter().map(|i| poly[2*i] + t * (poly[2*i + 1] - poly[2*i])).collect();
+// }
 
 pub fn from_evals<F: Field>(evals: &[F]) -> Vec<F> {
     vandermonde_interpolation(evals)

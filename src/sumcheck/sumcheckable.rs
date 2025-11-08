@@ -1,6 +1,6 @@
 /// Represents prover view of multivariate polynomial that is being sumchecked.
 pub trait Sumcheckable<F> {
-    /// Binds the polynomial on the coordinate t. Might be fallible unless unipoly() method was called.
+    /// Binds the polynomial on the coordinate t. Might be fallible unless response() method was called.
     fn bind(&mut self, r: F);
     /// Returns the sumcheck response.
     fn response(&mut self) -> Vec<F>;
