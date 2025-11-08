@@ -72,7 +72,7 @@ impl<
     }
 }
 
-pub const MIN_VARS_FOR_PACKING: usize = 8;
+// pub const MIN_VARS_FOR_PACKING: usize = 8;
 
 #[derive(Clone, Debug)]
 pub enum PackedPoly<F: Field, A: PackedField<Scalar = F>> {
@@ -83,7 +83,7 @@ impl<F: Field, A: PackedField<Scalar = F>> PackedPoly<F, A> {
     
     pub fn from_packed(v: Vec<A>) -> Self {
         assert!(v.len() == 1 << log2_ceil_usize(v.len()));
-        if v.len() < (1 << MIN_VARS_FOR_PACKING) {
+        if v.len() < A::WIDTH {
             Self::Unpacked(A::unpack(v))
         } else {
             Self::Packed(v)
@@ -92,7 +92,7 @@ impl<F: Field, A: PackedField<Scalar = F>> PackedPoly<F, A> {
 
     pub fn from_unpacked(v: Vec<F>) -> Self {
         assert!(v.len() == 1 << log2_ceil_usize(v.len()));
-        if v.len() < (1 << MIN_VARS_FOR_PACKING) {
+        if v.len() < A::WIDTH {
             Self::Unpacked(v)
         } else {
             Self::Packed(A::pack(v))
@@ -113,6 +113,14 @@ impl<F: Field, A: PackedField<Scalar = F>> PackedPoly<F, A> {
             PackedPoly::Unpacked(v) => v,
         }
     }
+
+    pub fn to_packed(self) -> Vec<A> {
+        match self {
+            PackedPoly::Packed(v) => v,
+            PackedPoly::Unpacked(v) => A::pack(v),
+        }
+    }
+
 
     pub fn len(&self) -> usize {
         match self {
@@ -148,12 +156,12 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> DenseSumcheckableSO<
     }
     
     pub fn new_packed(polys: Vec<Vec<A>>, f: Fun, num_vars: usize, claim_hint: F) -> Self {
-        assert!(num_vars >= MIN_VARS_FOR_PACKING);
+        assert!(1 << num_vars >= A::WIDTH);
         Self::Packed(DenseSumcheckableSOInternal::new(polys, f, num_vars, claim_hint))
     }
 
     pub fn new_unpacked(polys: Vec<Vec<F>>, f: Fun, num_vars: usize, claim_hint: F) -> Self {
-        assert!(num_vars < MIN_VARS_FOR_PACKING);
+        assert!(1 << num_vars < A::WIDTH);
         Self::Unpacked(DenseSumcheckableSOInternal::new(polys, f, num_vars, claim_hint))
     }
 
@@ -185,7 +193,7 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> Sumcheckable<F> for 
             _ => panic!(),
         }
         
-        if self.remaining_vars() == MIN_VARS_FOR_PACKING {
+        if 1 << self.remaining_vars() == A::WIDTH {
             // Go from packed to unpacked form.
             let dummy = Self::None;
             let s = std::mem::replace(self, dummy);
@@ -254,14 +262,10 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> Sumcheckable<F> for DenseSumcheckab
     fn response(&mut self) -> Vec<F>{
         assert!(self.round_idx < self.num_vars, "the protocol has already ended");
 
-        println!("Current round: {}", self.round_idx);
-
         match self.cached_response.as_ref() {
             Some(p) => {return p.clone()},
             None => {
                 let half = 1 << (self.num_vars - self.round_idx - log2_ceil_usize(A::WIDTH) - 1);
-                println!("half: {}", half);
-                println!("polys[0]: {}", self.polys[0].len());
                 let n_polys = self.polys.len();
 
                 let num_tasks = 8 * current_num_threads();
@@ -306,19 +310,19 @@ impl<F: Field, Fun: AlgFnSO<F>, A: AlgTr<F>> Sumcheckable<F> for DenseSumcheckab
 
                 total_acc[0] = self.claim - total_acc[1];
 
-                //---- debugging
-                debug_assert!( total_acc[0] == {
-                    let mut acc0 = F::ZERO;
-                    let mut args = vec![A::ZERO; n_polys];
-                    for i in 0..half {
-                        for j in 0..n_polys {
-                            args[j] = self.polys[j][2 * i];
-                        }
-                        acc0 += self.f.exec(&args).tr();
-                    }
-                    acc0
-                });
-                //------------------------------
+                // //---- debugging
+                // debug_assert!( total_acc[0] == {
+                //     let mut acc0 = F::ZERO;
+                //     let mut args = vec![A::ZERO; n_polys];
+                //     for i in 0..half {
+                //         for j in 0..n_polys {
+                //             args[j] = self.polys[j][2 * i];
+                //         }
+                //         acc0 += self.f.exec(&args).tr();
+                //     }
+                //     acc0
+                // });
+                // //------------------------------
 
                 self.cached_response = Some(from_evals(&total_acc));
             }
@@ -382,7 +386,7 @@ impl<Ctx: ProverFieldCtx, Fun: AlgFnSO<Ctx::F>> ProtocolProver<Ctx> for DensePP<
 mod tests {
     use super::*;
     use std::ops::Index;
-    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear5 as F, math::{eq_poly, evaluate_multivar, lte_ev}, pack::PackedField, random::Random};
+    use crate::common::{algfn::AlgFnSO, claims::SumEvalClaim, koala_passthrough::KoalaBear5 as F, math::{eq_poly, evaluate_multivar, evaluate_packed_multivar, lte_ev}, pack::PackedField, random::Random};
     use fiat_shamir::{ProverState, VerifierState};
     use itertools::Itertools;
     use p3_challenger::{DuplexChallenger};
@@ -451,10 +455,10 @@ mod tests {
 
         let SinglePointClaims { point : mut new_point, evs } = output_claims;
         
-        let polys = polys.into_iter().map(|poly| poly.to_unpacked()).collect_vec();
+        let polys = polys.into_iter().map(|poly| poly.to_packed()).collect_vec();
 
         assert_eq!(polys.iter().map(|poly| 
-            evaluate_multivar(&poly, &new_point)
+            evaluate_packed_multivar(&poly, &new_point)
         ).collect::<Vec<_>>(), evs);
 
     }
