@@ -193,7 +193,7 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> Sumcheckable<F> for 
             _ => panic!(),
         }
         
-        if 1 << self.remaining_vars() == A::WIDTH {
+        if 1 << self.remaining_vars() < A::WIDTH {
             // Go from packed to unpacked form.
             let dummy = Self::None;
             let s = std::mem::replace(self, dummy);
