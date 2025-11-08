@@ -193,7 +193,7 @@ impl<F: Field, Fun: AlgFnSO<F>, A: PackedField<Scalar = F>> Sumcheckable<F> for 
             _ => panic!(),
         }
         
-        if 1 << self.remaining_vars() < A::WIDTH {
+        if 1 << self.remaining_vars() == A::WIDTH {
             // Go from packed to unpacked form.
             let dummy = Self::None;
             let s = std::mem::replace(self, dummy);
@@ -457,7 +457,7 @@ mod tests {
         
         let polys = polys.into_iter().map(|poly| poly.to_unpacked()).collect_vec();
 
-        let w = log2_ceil_usize(PackedQuinticExtensionFieldKB::WIDTH);
+        let w = log2_ceil_usize(PackedQuinticExtensionFieldKB::WIDTH) + 1;
         let adjusted_point = new_point[w..].iter().chain(&new_point[..w]).map(|x|*x).collect_vec();
 
         assert_eq!(polys.iter().map(|poly| 
