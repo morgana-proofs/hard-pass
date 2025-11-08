@@ -2,6 +2,7 @@ use std::iter::once;
 use multilinear_toolkit::prelude::{EvaluationsList, MultilinearPoint};
 use p3_field::Algebra;
 use p3_maybe_rayon::prelude::*;
+use p3_util::log2_ceil_usize;
 use crate::common::{formal_field::{Field, FormalField}, pack::{AlgTr, PackedField}};
 use itertools::Itertools;
 
@@ -285,9 +286,9 @@ pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
 }
 
 pub fn evaluate_packed_multivar<F: Field, A: PackedField<Scalar = F>> (poly: &[A], pt: &[F]) -> F {
-    let eq = eq_poly(&pt[1 << A::WIDTH ..]);
+    let eq = eq_poly(&pt[log2_ceil_usize(A::WIDTH) ..]);
     let p = poly.par_iter().zip_eq(eq.par_iter()).map(|(&a, &b)| a * b).par_fold_reduce(||A::ZERO, |a, b| a + b, |a, b| a + b);
     let p = A::unpack(vec![p]);
-    let eq = eq_poly(&pt[.. 1 << A::WIDTH]); 
+    let eq = eq_poly(&pt[.. log2_ceil_usize(A::WIDTH)]); 
     p.iter().zip(eq.iter()).map(|(&a, &b)| a * b).fold(F::ZERO, |a, b| a + b)
 }
