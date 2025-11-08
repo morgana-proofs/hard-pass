@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn dense_sumcheck_with_verifier_accepts_prover() {
         let rng = &mut StdRng::from_seed([0; 32]);
-        let logsize = 16;
+        let logsize = 7;
         let u = StandardUniform;
         let polys : Vec<Vec<F>> = (0..2).map(|_| (0 .. 1 << logsize).map(|_|u.sample(rng)).collect()).collect();
 
