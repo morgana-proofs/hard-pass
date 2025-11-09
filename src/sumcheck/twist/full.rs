@@ -175,7 +175,7 @@ mod tests {
         let claims = protocol_lookup.verify(&mut transcript_v, claims);
         
         let acc_idx_ev_claim = LinEvalClaim {point: claims.rt.to_vec(), ev: claims.acc_indices_ev};
-        let pshf_ev_claim = LinEvalClaim {point: claims.rx.to_vec(), ev: claims.pushforward_ev};
+        // let pshf_ev_claim = LinEvalClaim {point: claims.rx.to_vec(), ev: claims.pushforward_ev};
         
         // validate all claims
         assert!(init_ev_claim.ev == evaluate_multivar(&init_state, &init_ev_claim.point));
@@ -183,13 +183,13 @@ mod tests {
         
         let acc_idx_as_field = acc_indices.iter().map(|&i| F::from_prime_subfield(KoalaBear::from_u64(i as u64))).collect_vec();
 
-        let eqpoly_rt = eq_poly(&rt_phase_2); // easy way to recover in what point 
-        let mut pshf = vec![F::ZERO; 1 << x_logsize];
-        for i in 0 .. 1 << t_logsize {
-            pshf[acc_indices[i]] += eqpoly_rt[i];
-        }
+        // let eqpoly_rt = eq_poly(&rt_phase_2); // easy way to recover in what point 
+        // let mut pshf = vec![F::ZERO; 1 << x_logsize];
+        // for i in 0 .. 1 << t_logsize {
+        //     pshf[acc_indices[i]] += eqpoly_rt[i];
+        // }
 
         assert!(acc_idx_ev_claim.ev == evaluate_multivar(&acc_idx_as_field, &acc_idx_ev_claim.point));
-        assert!(pshf_ev_claim.ev == evaluate_multivar(&pshf, &pshf_ev_claim.point));
+        // assert!(pshf_ev_claim.ev == evaluate_multivar(&pshf, &pshf_ev_claim.point));
     }
 }

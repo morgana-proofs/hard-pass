@@ -282,3 +282,33 @@ pub fn evaluate_multivar<F: Field>(poly: &[F], pt: &[F]) -> F {
     pt.reverse();
     poly.evaluate(&MultilinearPoint(pt))
 }
+
+
+fn bit_reverse(x: usize, n_bits: usize) -> usize {
+    let mut result = 0;
+    let mut value = x;
+
+    for _ in 0..n_bits {
+        result = (result << 1) | (value & 1);
+        value >>= 1;
+    }
+
+    result
+}
+
+pub fn reverse_variable_ordering<F: Copy + Send + Sync>(input: &[F]) -> Vec<F> {
+    // bit-reverse every index
+    let n = input.len();
+    assert!(n.is_power_of_two());
+    let log_n = n.trailing_zeros() as usize;
+    (0..n)
+        .into_par_iter()
+        .map(|i| input[bit_reverse(i, log_n)])
+        .collect()
+}
+
+pub fn reverse_point<F: Copy>(point: &[F]) -> Vec<F> {
+    let mut res = point.to_vec();
+    res.reverse();
+    res
+}
